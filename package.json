@@ -13,13 +13,17 @@
 	"license": "GPL-3.0-only",
 	"private": true,
 	"scripts": {
-		"visual:init": "tsx src/init-config.ts",
-		"visual:generate": "tsx src/generate-visual-baseline.ts",
-		"visual:test": "tsx src/run-visual-tests.ts",
-		"visual:report": "playwright show-report .visual-regression/report",
-		"visual:inspect": "tsx src/inspect-page.ts",
+		"cli": "tsx src/cli.ts",
+		"visual:init": "tsx src/cli.ts init",
+		"visual:generate": "tsx src/cli.ts generate",
+		"visual:test": "tsx src/cli.ts test",
+		"visual:report": "tsx src/cli.ts report",
+		"visual:inspect": "tsx src/cli.ts inspect",
 		"typecheck": "tsc --noEmit",
 		"check": "npx -y @biomejs/biome check",
 		"check:fix": "npx -y @biomejs/biome check --write"
+	},
+	"dependencies": {
+		"commander": "^14.0.3"
 	}
 }
