@@ -1,22 +1,22 @@
 {
-  "timeout": 30000,
-  "externalResourceTimeout": 20000,
-  "ignoreQueryParams": true,
-  "blacklistPatterns": ["/_profiler/*", "/images/*"],
-  "viewports": [
-    { "name": "desktop", "width": 1280 },
-    { "name": "mobile", "width": 375, "height": 667 }
-  ],
-  "outputDir": "../.visual-regression/screenshots/baseline",
-  "manifestPath": "../.visual-regression/manifest.json",
-  "hideSelectors": [
-    ".sf-toolbar",
-    "#goToTop",
-    "#cookies-agreement",
-    "[data-hx-include]",
-    ".cookie-banner",
-    ".cookie-consent",
-    ".fb-share-button",
-    "main > div.small.text-center.text-muted:last-child"
-  ]
+	"timeout": 30000,
+	"externalResourceTimeout": 20000,
+	"ignoreQueryParams": true,
+	"blacklistPatterns": ["/_profiler/*", "/images/*"],
+	"viewports": [
+		{ "name": "desktop", "width": 1280 },
+		{ "name": "mobile", "width": 375, "height": 667 }
+	],
+	"outputDir": "../.visual-regression/screenshots/baseline",
+	"manifestPath": "../.visual-regression/manifest.json",
+	"hideSelectors": [
+		".sf-toolbar",
+		"#goToTop",
+		"#cookies-agreement",
+		"[data-hx-include]",
+		".cookie-banner",
+		".cookie-consent",
+		".fb-share-button",
+		"main > div.small.text-center.text-muted:last-child"
+	]
 }
