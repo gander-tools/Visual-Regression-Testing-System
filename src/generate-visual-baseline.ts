@@ -1,25 +1,66 @@
-#!/usr/bin/env node
-import { chromium } from '@playwright/test';
+#!/usr/bin/env tsx
+import { chromium, type Browser, type Page, type Route, type BrowserContext } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+interface CrawlConfig {
+  timeout: number;
+  externalResourceTimeout: number;
+  ignoreQueryParams: boolean;
+  blacklistPatterns: string[];
+  viewports: Array<{ name: string; width: number; height?: number }>;
+  outputDir: string;
+  manifestPath: string;
+  hideSelectors: string[];
+}
 
-// Parse arguments: node script.mjs [path|baseUrl]
+interface ScreenshotResult {
+  path: string;
+  viewport: string;
+  filename: string;
+}
+
+interface Manifest {
+  version: string;
+  generatedAt: string;
+  baseUrl: string;
+  crawlerConfig: {
+    timeout: number;
+    ignoreQueryParams: boolean;
+    blacklistPatterns: string[];
+    hideSelectors: string[];
+  };
+  paths: string[];
+  metadata: {
+    totalPaths: number;
+    totalScreenshots: number;
+    viewports: string[];
+  };
+}
+
+type LoadStrategy = 'normal' | 'extra_timeout' | 'brutal';
+
+interface StrategyConfig {
+  timeout: number;
+  waitUntil: 'networkidle' | 'domcontentloaded';
+  externalTimeout?: number;
+  maxRetries?: number;
+  blockExternal?: boolean;
+}
+
+// Parse arguments: tsx script.ts [path|baseUrl]
 const arg = process.argv[2];
 const baseUrl = process.env.BASE_URL || 'https://localhost';
-let specificPath = null;
+let specificPath: string | null = null;
 
 // If argument starts with /, treat it as a path to generate
 if (arg && arg.startsWith('/')) {
   specificPath = arg;
 }
 
-const configPath = path.join(__dirname, '../tests/visual/fixtures/crawl-config.json');
+const configPath = path.join(__dirname, 'crawl-config.json');
 
-const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+const config: CrawlConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
 // Resolve paths relative to config file location
 const configDir = path.dirname(configPath);
@@ -27,7 +68,7 @@ const snapshotsDir = path.resolve(configDir, config.outputDir || '../regression.
 const manifestPath = path.resolve(configDir, config.manifestPath || './manifest.json');
 
 // Clean output directory before generating (preserve hidden files like .git, .gitignore)
-const visualRegressionDir = path.resolve(configDir, '../../../.visual-regression');
+const visualRegressionDir = path.resolve(configDir, '../.visual-regression');
 if (fs.existsSync(visualRegressionDir)) {
   const entries = fs.readdirSync(visualRegressionDir, { withFileTypes: true });
   for (const entry of entries) {
@@ -40,15 +81,65 @@ if (fs.existsSync(visualRegressionDir)) {
   console.log('🧹 Cleaned .visual-regression directory (preserved hidden files)');
 }
 
+function setupExternalResourceTimeout(page: Page, baseUrlParam: string, timeoutMs = 20000): void {
+  const requestAttempts = new Map<string, number>();
+  const maxAttempts = 2;
+
+  const whitelistedDomains = [
+    'youtube.com',
+    'ytimg.com',
+    'googlevideo.com',
+    'ggpht.com',
+    'vimeo.com',
+    'vimeocdn.com'
+  ];
+
+  page.route('**/*', (route: Route) => {
+    const url = route.request().url();
+
+    if (url.startsWith(baseUrlParam) || url.startsWith('data:')) {
+      route.continue();
+      return;
+    }
+
+    if (whitelistedDomains.some(domain => url.includes(domain))) {
+      route.continue();
+      return;
+    }
+
+    const attempts = requestAttempts.get(url) || 0;
+    if (attempts >= maxAttempts) {
+      route.abort('timedout').catch(() => {});
+      return;
+    }
+
+    requestAttempts.set(url, attempts + 1);
+
+    const timer = setTimeout(() => {
+      route.abort('timedout').catch(() => {});
+    }, timeoutMs);
+
+    route.continue().then(() => {
+      clearTimeout(timer);
+      requestAttempts.delete(url);
+    }).catch(() => {
+      clearTimeout(timer);
+    });
+  });
+}
+
 class PageCrawler {
-  constructor(baseUrl, config) {
+  private baseUrl: string;
+  private config: CrawlConfig;
+  private discoveredPaths = new Set<string>();
+  private visited = new Set<string>();
+
+  constructor(baseUrl: string, config: CrawlConfig) {
     this.baseUrl = baseUrl;
     this.config = config;
-    this.discoveredPaths = new Set();
-    this.visited = new Set();
   }
 
-  normalizePath(url) {
+  normalizePath(url: string): string | null {
     try {
       const parsed = new URL(url, this.baseUrl);
       if (!parsed.href.startsWith(this.baseUrl)) return null;
@@ -62,7 +153,7 @@ class PageCrawler {
     }
   }
 
-  isBlacklisted(urlPath) {
+  isBlacklisted(urlPath: string): boolean {
     for (const pattern of this.config.blacklistPatterns) {
       if (pattern.endsWith('/*')) {
         const prefix = pattern.slice(0, -2);
@@ -74,71 +165,12 @@ class PageCrawler {
     return false;
   }
 
-  setupExternalResourceTimeout(page, timeoutMs = 20000) {
-    const baseUrl = this.baseUrl;
-    const requestAttempts = new Map(); // Track attempts per URL
-    const maxAttempts = 2; // Allow 2 attempts before permanent blocking
+  async crawl(page: Page): Promise<string[]> {
+    setupExternalResourceTimeout(page, this.baseUrl, this.config.externalResourceTimeout || 10000);
 
-    // Whitelisted domains that should never be blocked (embeds, critical resources)
-    const whitelistedDomains = [
-      'youtube.com',
-      'ytimg.com',
-      'googlevideo.com',
-      'ggpht.com',
-      'vimeo.com',
-      'vimeocdn.com'
-    ];
-
-    page.route('**/*', (route) => {
-      const url = route.request().url();
-
-      // Allow internal resources and data URIs immediately
-      if (url.startsWith(baseUrl) || url.startsWith('data:')) {
-        route.continue();
-        return;
-      }
-
-      // Allow whitelisted domains (YouTube, Vimeo embeds)
-      if (whitelistedDomains.some(domain => url.includes(domain))) {
-        route.continue();
-        return;
-      }
-
-      // Check if this URL has exceeded max attempts
-      const attempts = requestAttempts.get(url) || 0;
-      if (attempts >= maxAttempts) {
-        route.abort('timedout').catch(() => {});
-        return;
-      }
-
-      // Increment attempt counter
-      requestAttempts.set(url, attempts + 1);
-
-      // External resource - set timeout
-      const timer = setTimeout(() => {
-        route.abort('timedout').catch(() => {
-          // Route may already be fulfilled/aborted, ignore error
-        });
-      }, timeoutMs);
-
-      // Continue the request
-      route.continue().then(() => {
-        clearTimeout(timer);
-        // Success - reset counter for this URL
-        requestAttempts.delete(url);
-      }).catch(() => {
-        clearTimeout(timer);
-      });
-    });
-  }
-
-  async crawl(page) {
-    // Setup timeout for external resources during crawling
-    this.setupExternalResourceTimeout(page, this.config.externalResourceTimeout || 10000);
-
-    const queue = ['/'];
+    const queue: string[] = ['/'];
     while (queue.length > 0) {
-      const currentPath = queue.shift();
+      const currentPath = queue.shift()!;
       if (this.visited.has(currentPath)) continue;
       this.visited.add(currentPath);
 
@@ -156,7 +188,7 @@ class PageCrawler {
 
         this.discoveredPaths.add(currentPath);
 
-        const links = await page.$$eval('a[href]', anchors => anchors.map(a => a.href));
+        const links = await page.$$eval('a[href]', anchors => anchors.map(a => (a as HTMLAnchorElement).href));
         for (const link of links) {
           const normalizedPath = this.normalizePath(link);
           if (normalizedPath && !this.visited.has(normalizedPath)) {
@@ -164,7 +196,7 @@ class PageCrawler {
           }
         }
       } catch (error) {
-        console.warn(`⚠️  Error crawling ${currentPath}: ${error.message}`);
+        console.warn(`⚠️  Error crawling ${currentPath}: ${(error as Error).message}`);
       }
     }
     return Array.from(this.discoveredPaths).sort();
@@ -172,7 +204,19 @@ class PageCrawler {
 }
 
 class ScreenshotGenerator {
-  constructor(baseUrl, viewports, outputDir, hideSelectors, config) {
+  private baseUrl: string;
+  private viewports: CrawlConfig['viewports'];
+  private outputDir: string;
+  private hideSelectors: string[];
+  private config: CrawlConfig;
+
+  constructor(
+    baseUrl: string,
+    viewports: CrawlConfig['viewports'],
+    outputDir: string,
+    hideSelectors: string[],
+    config: CrawlConfig
+  ) {
     this.baseUrl = baseUrl;
     this.viewports = viewports;
     this.outputDir = outputDir;
@@ -180,101 +224,38 @@ class ScreenshotGenerator {
     this.config = config;
   }
 
-  getScreenshotFilename(pagePath, viewportName) {
+  getScreenshotFilename(pagePath: string, viewportName: string): string {
     const safePath = pagePath === '/' ? 'homepage' : pagePath.replace(/\//g, '-').replace(/^-/, '');
     return `${viewportName}-${safePath}.png`;
   }
 
-  setupExternalResourceTimeout(page, timeoutMs = 20000) {
-    const baseUrl = this.baseUrl;
-    const requestAttempts = new Map(); // Track attempts per URL
-    const maxAttempts = 2; // Allow 2 attempts before permanent blocking
-
-    // Whitelisted domains that should never be blocked (embeds, critical resources)
-    const whitelistedDomains = [
-      'youtube.com',
-      'ytimg.com',
-      'googlevideo.com',
-      'ggpht.com',
-      'vimeo.com',
-      'vimeocdn.com'
-    ];
-
-    page.route('**/*', (route) => {
-      const url = route.request().url();
-
-      // Allow internal resources and data URIs immediately
-      if (url.startsWith(baseUrl) || url.startsWith('data:')) {
-        route.continue();
-        return;
-      }
-
-      // Allow whitelisted domains (YouTube, Vimeo embeds)
-      if (whitelistedDomains.some(domain => url.includes(domain))) {
-        route.continue();
-        return;
-      }
-
-      // Check if this URL has exceeded max attempts
-      const attempts = requestAttempts.get(url) || 0;
-      if (attempts >= maxAttempts) {
-        route.abort('timedout').catch(() => {});
-        return;
-      }
-
-      // Increment attempt counter
-      requestAttempts.set(url, attempts + 1);
-
-      // External resource - set timeout
-      const timer = setTimeout(() => {
-        route.abort('timedout').catch(() => {
-          // Route may already be fulfilled/aborted, ignore error
-        });
-      }, timeoutMs);
-
-      // Continue the request
-      route.continue().then(() => {
-        clearTimeout(timer);
-        // Success - reset counter for this URL
-        requestAttempts.delete(url);
-      }).catch(() => {
-        clearTimeout(timer);
-      });
-    });
-  }
-
-  async hideElements(page) {
+  async hideElements(page: Page): Promise<void> {
     if (this.hideSelectors.length === 0) return;
 
     for (const selector of this.hideSelectors) {
       try {
-        await page.evaluate((sel) => {
+        await page.evaluate((sel: string) => {
           const elements = document.querySelectorAll(sel);
           elements.forEach(el => el.remove());
         }, selector);
-      } catch (error) {
+      } catch {
         // Selector might not exist on this page, that's OK
       }
     }
   }
 
-  async tryPageLoad(page, url, strategy) {
-    // Progressive fallback strategies for problematic pages with external resources
-    const strategies = {
-      // Level 1: Normal - full networkidle, no restrictions
+  async tryPageLoad(page: Page, url: string, strategy: LoadStrategy): Promise<void> {
+    const strategies: Record<LoadStrategy, StrategyConfig> = {
       normal: {
         timeout: 30000,
         waitUntil: 'networkidle',
-        externalTimeout: null
       },
-      // Level 2: Extra timeout - abort external resources after 20s
       extra_timeout: {
         timeout: 30000,
         waitUntil: 'networkidle',
         externalTimeout: 20000,
         maxRetries: 2
       },
-      // Level 3: Brutal - block ALL external resources, use domcontentloaded
       brutal: {
         timeout: 30000,
         waitUntil: 'domcontentloaded',
@@ -282,18 +263,16 @@ class ScreenshotGenerator {
       }
     };
 
-    const config = strategies[strategy];
+    const strategyConfig = strategies[strategy];
 
-    // Setup external resource timeout if specified
-    if (config.externalTimeout) {
-      this.setupExternalResourceTimeout(page, config.externalTimeout);
+    if (strategyConfig.externalTimeout) {
+      setupExternalResourceTimeout(page, this.baseUrl, strategyConfig.externalTimeout);
     }
 
-    // Block all external resources if specified (most drastic)
-    if (config.blockExternal) {
-      await page.route('**/*', (route) => {
-        const url = route.request().url();
-        if (url.startsWith(this.baseUrl) || url.startsWith('data:')) {
+    if (strategyConfig.blockExternal) {
+      await page.route('**/*', (route: Route) => {
+        const reqUrl = route.request().url();
+        if (reqUrl.startsWith(this.baseUrl) || reqUrl.startsWith('data:')) {
           route.continue();
         } else {
           route.abort('blockedbyrule').catch(() => {});
@@ -302,13 +281,13 @@ class ScreenshotGenerator {
     }
 
     await page.goto(url, {
-      timeout: config.timeout,
-      waitUntil: config.waitUntil
+      timeout: strategyConfig.timeout,
+      waitUntil: strategyConfig.waitUntil
     });
   }
 
-  async generateScreenshots(browser, paths) {
-    const results = [];
+  async generateScreenshots(browser: Browser, paths: string[]): Promise<ScreenshotResult[]> {
+    const results: ScreenshotResult[] = [];
     for (const viewport of this.viewports) {
       console.log(`\n📸 Generating ${viewport.name} screenshots (${viewport.width}px)...`);
       const context = await browser.newContext({
@@ -319,49 +298,41 @@ class ScreenshotGenerator {
       for (const pagePath of paths) {
         const fullUrl = this.baseUrl + pagePath;
         let loaded = false;
-        let usedStrategy = 'normal';
-        let page = null;
+        let page: Page | null = null;
 
-        // Progressive fallback: try strategies from gentle to drastic
-        const strategies = ['normal', 'extra_timeout', 'brutal'];
+        const strategyList: LoadStrategy[] = ['normal', 'extra_timeout', 'brutal'];
 
-        for (const strategy of strategies) {
+        for (const strategy of strategyList) {
           try {
-            // Create fresh page for each strategy attempt to avoid route conflicts
             if (page) await page.close();
             page = await context.newPage();
 
             console.log(`   ${pagePath}${strategy !== 'normal' ? ` (${strategy})` : ''}`);
             await this.tryPageLoad(page, fullUrl, strategy);
             loaded = true;
-            usedStrategy = strategy;
-            break; // Success! No need to try more strategies
+            break;
           } catch (error) {
-            if (strategy === strategies[strategies.length - 1]) {
-              // Last strategy also failed
-              console.warn(`   ⚠️  Failed ${pagePath}: ${error.message}`);
+            if (strategy === strategyList[strategyList.length - 1]) {
+              console.warn(`   ⚠️  Failed ${pagePath}: ${(error as Error).message}`);
             }
-            // Try next strategy with fresh page
           }
         }
 
         if (!loaded) {
           if (page) await page.close();
-          continue; // Skip screenshot if all strategies failed
+          continue;
         }
 
         try {
-          // Hide unwanted elements before screenshot
-          await this.hideElements(page);
+          await this.hideElements(page!);
 
           const filename = this.getScreenshotFilename(pagePath, viewport.name);
           const filepath = path.join(this.outputDir, filename);
-          await page.screenshot({ path: filepath, fullPage: true });
+          await page!.screenshot({ path: filepath, fullPage: true });
           results.push({ path: pagePath, viewport: viewport.name, filename });
         } catch (error) {
-          console.warn(`   ⚠️  Screenshot failed ${pagePath}: ${error.message}`);
+          console.warn(`   ⚠️  Screenshot failed ${pagePath}: ${(error as Error).message}`);
         } finally {
-          // Clean up page after screenshot
           if (page) await page.close();
         }
       }
@@ -372,12 +343,14 @@ class ScreenshotGenerator {
 }
 
 class ManifestWriter {
-  constructor(manifestPath) {
+  private manifestPath: string;
+
+  constructor(manifestPath: string) {
     this.manifestPath = manifestPath;
   }
 
-  write(baseUrl, config, paths, screenshots) {
-    const manifest = {
+  write(baseUrl: string, config: CrawlConfig, paths: string[], screenshots: ScreenshotResult[]): void {
+    const manifest: Manifest = {
       version: '1.0',
       generatedAt: new Date().toISOString(),
       baseUrl: baseUrl,
@@ -395,7 +368,6 @@ class ManifestWriter {
       }
     };
 
-    // Ensure directory exists
     const dir = path.dirname(this.manifestPath);
     fs.mkdirSync(dir, { recursive: true });
 
@@ -431,19 +403,17 @@ console.log('');
     if (!response?.ok()) throw new Error(`Server returned ${response?.status()}`);
     console.log(`✅ Server at ${baseUrl} is reachable\n`);
   } catch (error) {
-    console.error(`❌ Cannot reach server at ${baseUrl}: ${error.message}`);
+    console.error(`❌ Cannot reach server at ${baseUrl}: ${(error as Error).message}`);
     await browser.close();
     process.exit(1);
   }
 
-  let discoveredPaths;
+  let discoveredPaths: string[];
 
   if (specificPath) {
-    // Single path mode - skip crawling
     console.log(`🎯 Generating screenshots for: ${specificPath}\n`);
     discoveredPaths = [specificPath];
   } else {
-    // Full crawl mode
     console.log('🕷️  Starting page discovery...\n');
     const crawler = new PageCrawler(baseUrl, config);
     discoveredPaths = await crawler.crawl(page);
@@ -465,10 +435,8 @@ console.log('');
 
   console.log(`\n✅ Generated ${screenshots.length} screenshots`);
 
-  // Always write manifest (even in single path mode)
   const manifestWriter = new ManifestWriter(manifestPath);
   if (specificPath) {
-    // Single path mode - create/update manifest with just this path
     console.log('\n📝 Creating manifest for single path...');
   }
   manifestWriter.write(baseUrl, config, discoveredPaths, screenshots);
