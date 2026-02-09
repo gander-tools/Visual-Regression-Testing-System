@@ -1,10 +1,20 @@
-import { test } from '@playwright/test';
+import { test, type Page, type Route } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 
+interface CrawlConfig {
+  timeout: number;
+  manifestPath: string;
+}
+
+interface ManifestData {
+  baseUrl: string;
+  paths: string[];
+}
+
 // Read config to get manifest path
 const configPath = path.join(__dirname, 'fixtures/crawl-config.json');
-const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+const config: CrawlConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
 // Resolve manifest path relative to config
 const configDir = path.dirname(configPath);
@@ -18,11 +28,11 @@ if (!fs.existsSync(manifestPath)) {
   );
 }
 
-const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+const manifest: ManifestData = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
 
 // Setup external resource timeout to prevent networkidle blocking
-async function setupExternalResourceTimeout(page: any, baseUrl: string, timeoutMs = 20000) {
-  const requestAttempts = new Map();
+async function setupExternalResourceTimeout(page: Page, baseUrl: string, timeoutMs = 20000): Promise<void> {
+  const requestAttempts = new Map<string, number>();
   const maxAttempts = 2;
 
   // Whitelisted domains for embeds (YouTube, Vimeo)
@@ -35,7 +45,7 @@ async function setupExternalResourceTimeout(page: any, baseUrl: string, timeoutM
     'vimeocdn.com'
   ];
 
-  await page.route('**/*', (route: any) => {
+  await page.route('**/*', (route: Route) => {
     const url = route.request().url();
 
     // Allow internal resources and data URIs immediately
@@ -45,7 +55,7 @@ async function setupExternalResourceTimeout(page: any, baseUrl: string, timeoutM
     }
 
     // Allow whitelisted domains (YouTube, Vimeo embeds)
-    if (whitelistedDomains.some((domain: string) => url.includes(domain))) {
+    if (whitelistedDomains.some(domain => url.includes(domain))) {
       route.continue();
       return;
     }

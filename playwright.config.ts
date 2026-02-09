@@ -30,7 +30,7 @@ export default defineConfig({
     viewport: null,
   },
   projects: [{ name: 'chromium', use: {} }],
-  snapshotDir: snapshotsDir, // reads baseline from baseline/
+  snapshotDir: snapshotsDir,
   snapshotPathTemplate: '{snapshotDir}/{arg}{ext}',
-  outputDir: '.visual-regression/screenshots/regression', // writes actual/diff to regression/
+  outputDir: '.visual-regression/screenshots/regression',
 });

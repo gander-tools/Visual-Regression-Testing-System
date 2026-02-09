@@ -1,14 +1,14 @@
-#!/usr/bin/env node
+#!/usr/bin/env tsx
 import { spawn } from 'child_process';
 
-// Parse arguments: node script.mjs [path]
-const path = process.argv[2];
+// Parse arguments: tsx script.ts [path]
+const pagePath = process.argv[2];
 
 const args = ['test', 'tests/visual/'];
 
-if (path) {
+if (pagePath) {
   // Single path mode - use grep to filter tests
-  if (!path.startsWith('/')) {
+  if (!pagePath.startsWith('/')) {
     console.error('❌ Error: Path must start with /');
     console.log('\nUsage:');
     console.log('  npm run visual:test           # Run all tests');
@@ -16,10 +16,9 @@ if (path) {
     process.exit(1);
   }
 
-  console.log(`🎯 Running tests for: ${path}\n`);
+  console.log(`🎯 Running tests for: ${pagePath}\n`);
   // Match exact path: space + full path + no slash after + space + should
-  // /artykuly(?!/) should matches " /artykuly should" not " /artykuly/..."
-  const escapedPath = path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escapedPath = pagePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   args.push('--grep', ` ${escapedPath}(?!/) should`);
 } else {
   console.log('🧪 Running all visual regression tests\n');
@@ -31,5 +30,5 @@ const playwright = spawn('npx', ['playwright', ...args], {
 });
 
 playwright.on('close', (code) => {
-  process.exit(code);
+  process.exit(code ?? 0);
 });

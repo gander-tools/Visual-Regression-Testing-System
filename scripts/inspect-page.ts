@@ -1,11 +1,12 @@
-#!/usr/bin/env node
+#!/usr/bin/env tsx
 import { chromium } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+interface CrawlConfig {
+  timeout: number;
+  hideSelectors: string[];
+}
 
 // Parse arguments
 const pagePath = process.argv[2];
@@ -23,7 +24,7 @@ if (!pagePath) {
 
 // Load config for hideSelectors
 const configPath = path.join(__dirname, '../tests/visual/fixtures/crawl-config.json');
-const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+const config: CrawlConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
 console.log('🔍 Visual Regression Page Inspector\n');
 console.log(`📍 Base URL: ${baseUrl}`);
@@ -32,14 +33,13 @@ console.log(`⏱️  Timeout: ${config.timeout}ms`);
 console.log(`\n🚀 Launching browser in DEBUG mode...`);
 console.log(`   - Headed: visible browser window`);
 console.log(`   - Slowmo: 500ms delay between actions`);
-console.log(`   - DevTools: opened automatically`);
+console.log(`   - DevTools: use browser menu to open`);
 console.log(`\n💡 Tip: Check Console tab for errors, Network tab for timeouts\n`);
 
 (async () => {
   const browser = await chromium.launch({
     headless: false,  // Headed mode - visible browser
-    slowMo: 500,      // Slow down by 500ms
-    devtools: true    // Open DevTools automatically
+    slowMo: 500       // Slow down by 500ms
   });
 
   const context = await browser.newContext({
@@ -81,9 +81,9 @@ console.log(`\n💡 Tip: Check Console tab for errors, Network tab for timeouts\
     if (config.hideSelectors && config.hideSelectors.length > 0) {
       console.log(`\n🙈 Hiding ${config.hideSelectors.length} selectors...`);
       for (const selector of config.hideSelectors) {
-        await page.evaluate((sel) => {
+        await page.evaluate((sel: string) => {
           const elements = document.querySelectorAll(sel);
-          elements.forEach(el => el.style.display = 'none');
+          elements.forEach(el => (el as HTMLElement).style.display = 'none');
         }, selector);
       }
     }
@@ -95,7 +95,7 @@ console.log(`\n💡 Tip: Check Console tab for errors, Network tab for timeouts\
     await page.waitForEvent('close', { timeout: 0 });
 
   } catch (error) {
-    console.error(`\n❌ Error loading page:`, error.message);
+    console.error(`\n❌ Error loading page:`, (error as Error).message);
     console.log(`\n💡 Common issues:`);
     console.log(`   - Timeout: Page takes too long to reach networkidle`);
     console.log(`   - 404/500: Page doesn't exist or server error`);
