@@ -1,6 +1,7 @@
 #!/usr/bin/env tsx
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 
 interface CrawlConfig {
@@ -23,6 +24,7 @@ if (!pagePath) {
 }
 
 // Load config for hideSelectors
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const configPath = path.join(__dirname, "crawl-config.json");
 const config: CrawlConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 

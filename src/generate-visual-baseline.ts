@@ -1,6 +1,7 @@
 #!/usr/bin/env tsx
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
 	type Browser,
 	chromium,
@@ -63,6 +64,7 @@ if (arg?.startsWith("/")) {
 	specificPath = arg;
 }
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const configPath = path.join(__dirname, "crawl-config.json");
 
 const config: CrawlConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
@@ -240,6 +242,7 @@ class ScreenshotGenerator {
 	private viewports: CrawlConfig["viewports"];
 	private outputDir: string;
 	private hideSelectors: string[];
+	private config: CrawlConfig;
 
 	constructor(
 		baseUrl: string,
