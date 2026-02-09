@@ -32,44 +32,6 @@ interface StrategyConfig {
 	forceProceed?: boolean;
 }
 
-// Parse arguments: tsx script.ts [path|baseUrl]
-const arg = process.argv[2];
-const baseUrl = process.env.BASE_URL || "https://localhost";
-let specificPath: string | null = null;
-
-// If argument starts with /, treat it as a path to generate
-if (arg?.startsWith("/")) {
-	specificPath = arg;
-}
-
-const { config, configDir, viewports } = await loadCrawlConfig();
-
-// Resolve paths relative to project root
-const snapshotsDir = path.resolve(
-	configDir,
-	config.outputDir || ".visual-regression/screenshots/baseline",
-);
-const manifestPath = path.resolve(
-	configDir,
-	config.manifestPath || ".visual-regression/manifest.json",
-);
-
-// Clean output directory before generating (preserve hidden files like .git, .gitignore)
-const visualRegressionDir = path.resolve(configDir, ".visual-regression");
-if (fs.existsSync(visualRegressionDir)) {
-	const entries = fs.readdirSync(visualRegressionDir, { withFileTypes: true });
-	for (const entry of entries) {
-		// Skip hidden files/directories (starting with .)
-		if (entry.name.startsWith(".")) continue;
-
-		const fullPath = path.join(visualRegressionDir, entry.name);
-		fs.rmSync(fullPath, { recursive: true, force: true });
-	}
-	console.log(
-		"🧹 Cleaned .visual-regression directory (preserved hidden files)",
-	);
-}
-
 function setupExternalResourceTimeout(
 	page: Page,
 	baseUrlParam: string,
@@ -455,19 +417,51 @@ class ManifestWriter {
 	}
 }
 
-console.log("🚀 Visual Regression Baseline Generator");
-console.log(`📍 Base URL: ${baseUrl}`);
-console.log(`📁 Screenshots: ${snapshotsDir}`);
-console.log(`📄 Manifest: ${manifestPath}`);
-console.log(
-	`🖥️  Viewports: ${viewports.map((v) => `${v.name} (${v.width}x${v.height})`).join(", ")}`,
-);
-if (specificPath) {
-	console.log(`🎯 Single path mode: ${specificPath}`);
-}
-console.log("");
+export async function generateBaseline(specificPath?: string): Promise<void> {
+	const baseUrl = process.env.BASE_URL || "https://localhost";
 
-(async () => {
+	const { config, configDir, viewports } = await loadCrawlConfig();
+
+	// Resolve paths relative to project root
+	const snapshotsDir = path.resolve(
+		configDir,
+		config.outputDir || ".visual-regression/screenshots/baseline",
+	);
+	const manifestPath = path.resolve(
+		configDir,
+		config.manifestPath || ".visual-regression/manifest.json",
+	);
+
+	// Clean output directory before generating (preserve hidden files like .git, .gitignore)
+	const visualRegressionDir = path.resolve(configDir, ".visual-regression");
+	if (fs.existsSync(visualRegressionDir)) {
+		const entries = fs.readdirSync(visualRegressionDir, {
+			withFileTypes: true,
+		});
+		for (const entry of entries) {
+			// Skip hidden files/directories (starting with .)
+			if (entry.name.startsWith(".")) continue;
+
+			const fullPath = path.join(visualRegressionDir, entry.name);
+			fs.rmSync(fullPath, { recursive: true, force: true });
+		}
+		console.log(
+			"🧹 Cleaned .visual-regression directory (preserved hidden files)",
+		);
+	}
+
+	console.log("🚀 Visual Regression Baseline Generator");
+	console.log(`📍 Base URL: ${baseUrl}`);
+	console.log(`📁 Screenshots: ${snapshotsDir}`);
+	console.log(`📄 Manifest: ${manifestPath}`);
+	console.log(
+		`🖥️  Viewports: ${viewports.map((v) => `${v.name} (${v.width}x${v.height})`).join(", ")}`,
+	);
+	if (specificPath) {
+		console.log(`🎯 Single path mode: ${specificPath}`);
+	}
+	console.log("");
+
 	const browser = await chromium.launch({
 		headless: true,
 		args: ["--ignore-certificate-errors"],
@@ -554,4 +548,14 @@ console.log("");
 	console.log("\n🎉 Baseline generation complete!");
 
 	await browser.close();
-})();
+}
+
+// Run directly when executed as a script
+const isDirectRun =
+	process.argv[1]?.endsWith("generate-visual-baseline.ts") ||
+	process.argv[1]?.endsWith("generate-visual-baseline");
+if (isDirectRun) {
+	const arg = process.argv[2];
+	const specificPath = arg?.startsWith("/") ? arg : undefined;
+	generateBaseline(specificPath);
+}

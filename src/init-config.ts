@@ -2,16 +2,19 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const rootDir = process.cwd();
-const configPath = path.join(rootDir, ".crawler-config.ts");
+export function initConfig(): void {
+	const rootDir = process.cwd();
+	const configPath = path.join(rootDir, ".crawler-config.ts");
 
-if (fs.existsSync(configPath)) {
-	console.error("❌ .crawler-config.ts already exists in project root.");
-	console.log("   Edit the existing file or delete it first to re-initialize.");
-	process.exit(1);
-}
+	if (fs.existsSync(configPath)) {
+		console.error("❌ .crawler-config.ts already exists in project root.");
+		console.log(
+			"   Edit the existing file or delete it first to re-initialize.",
+		);
+		process.exit(1);
+	}
 
-const template = `import type { CrawlConfig } from "./src/crawler-config.ts";
+	const template = `import type { CrawlConfig } from "./src/crawler-config.ts";
 
 const config: Partial<CrawlConfig> = {
 \tblacklistPatterns: [
@@ -30,8 +33,17 @@ const config: Partial<CrawlConfig> = {
 export default config;
 `;
 
-fs.writeFileSync(configPath, template);
-console.log("✅ Created .crawler-config.ts with default configuration.");
-console.log(
-	"   Edit this file to customize crawler settings for your project.",
-);
+	fs.writeFileSync(configPath, template);
+	console.log("✅ Created .crawler-config.ts with default configuration.");
+	console.log(
+		"   Edit this file to customize crawler settings for your project.",
+	);
+}
+
+// Run directly when executed as a script
+const isDirectRun =
+	process.argv[1]?.endsWith("init-config.ts") ||
+	process.argv[1]?.endsWith("init-config");
+if (isDirectRun) {
+	initConfig();
+}
