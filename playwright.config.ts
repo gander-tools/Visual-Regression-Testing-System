@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 // Read config to get snapshots directory
-const configPath = path.join(__dirname, 'src/visual/fixtures/crawl-config.json');
+const configPath = path.join(__dirname, 'src/crawl-config.json');
 const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
 // Resolve snapshots path relative to config
@@ -11,7 +11,7 @@ const configDir = path.dirname(configPath);
 const snapshotsDir = path.resolve(configDir, config.outputDir || '../regression.spec.ts-snapshots');
 
 export default defineConfig({
-  testDir: './src/visual',
+  testDir: './src',
   timeout: 30000,
   expect: {
     timeout: 10000,

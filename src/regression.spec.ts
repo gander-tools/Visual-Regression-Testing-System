@@ -17,7 +17,7 @@ interface ManifestData {
 }
 
 // Read config to get manifest path
-const configPath = path.join(__dirname, 'fixtures/crawl-config.json');
+const configPath = path.join(__dirname, 'crawl-config.json');
 const config: CrawlConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
 // Resolve manifest path relative to config

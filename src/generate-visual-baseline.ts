@@ -58,7 +58,7 @@ if (arg && arg.startsWith('/')) {
   specificPath = arg;
 }
 
-const configPath = path.join(__dirname, '../visual/fixtures/crawl-config.json');
+const configPath = path.join(__dirname, 'crawl-config.json');
 
 const config: CrawlConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
@@ -68,7 +68,7 @@ const snapshotsDir = path.resolve(configDir, config.outputDir || '../regression.
 const manifestPath = path.resolve(configDir, config.manifestPath || './manifest.json');
 
 // Clean output directory before generating (preserve hidden files like .git, .gitignore)
-const visualRegressionDir = path.resolve(configDir, '../../../.visual-regression');
+const visualRegressionDir = path.resolve(configDir, '../.visual-regression');
 if (fs.existsSync(visualRegressionDir)) {
   const entries = fs.readdirSync(visualRegressionDir, { withFileTypes: true });
   for (const entry of entries) {

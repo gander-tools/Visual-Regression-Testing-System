@@ -23,7 +23,7 @@ if (!pagePath) {
 }
 
 // Load config for hideSelectors
-const configPath = path.join(__dirname, '../visual/fixtures/crawl-config.json');
+const configPath = path.join(__dirname, 'crawl-config.json');
 const config: CrawlConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
 console.log('🔍 Visual Regression Page Inspector\n');

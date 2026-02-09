@@ -4,7 +4,7 @@ import { spawn } from 'child_process';
 // Parse arguments: tsx script.ts [path]
 const pagePath = process.argv[2];
 
-const args = ['test', 'src/visual/'];
+const args = ['test', 'src/'];
 
 if (pagePath) {
   // Single path mode - use grep to filter tests
