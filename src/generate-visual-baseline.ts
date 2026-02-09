@@ -1,47 +1,23 @@
 #!/usr/bin/env tsx
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import {
 	type Browser,
 	chromium,
 	type Page,
 	type Route,
 } from "@playwright/test";
-
-interface CrawlConfig {
-	timeout: number;
-	externalResourceTimeout: number;
-	ignoreQueryParams: boolean;
-	blacklistPatterns: string[];
-	viewports: Array<{ name: string; width: number; height?: number }>;
-	outputDir: string;
-	manifestPath: string;
-	hideSelectors: string[];
-}
+import {
+	type CrawlConfig,
+	loadCrawlConfig,
+	type ManifestData,
+	type ViewportConfig,
+} from "./viewport-config.ts";
 
 interface ScreenshotResult {
 	path: string;
 	viewport: string;
 	filename: string;
-}
-
-interface Manifest {
-	version: string;
-	generatedAt: string;
-	baseUrl: string;
-	crawlerConfig: {
-		timeout: number;
-		ignoreQueryParams: boolean;
-		blacklistPatterns: string[];
-		hideSelectors: string[];
-	};
-	paths: string[];
-	metadata: {
-		totalPaths: number;
-		totalScreenshots: number;
-		viewports: string[];
-	};
 }
 
 type LoadStrategy = "normal" | "extra_timeout" | "brutal";
@@ -65,13 +41,9 @@ if (arg?.startsWith("/")) {
 	specificPath = arg;
 }
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const configPath = path.join(__dirname, "crawl-config.json");
-
-const config: CrawlConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+const { config, configDir, viewports } = loadCrawlConfig();
 
 // Resolve paths relative to config file location
-const configDir = path.dirname(configPath);
 const snapshotsDir = path.resolve(
 	configDir,
 	config.outputDir || "../regression.spec.ts-snapshots",
@@ -240,23 +212,21 @@ class PageCrawler {
 
 class ScreenshotGenerator {
 	private baseUrl: string;
-	private viewports: CrawlConfig["viewports"];
+	private viewports: ViewportConfig[];
 	private outputDir: string;
 	private hideSelectors: string[];
-	private config: CrawlConfig;
 
 	constructor(
 		baseUrl: string,
-		viewports: CrawlConfig["viewports"],
+		viewports: ViewportConfig[],
 		outputDir: string,
 		hideSelectors: string[],
-		config: CrawlConfig,
+		_config: CrawlConfig,
 	) {
 		this.baseUrl = baseUrl;
 		this.viewports = viewports;
 		this.outputDir = outputDir;
 		this.hideSelectors = hideSelectors || [];
-		this.config = config;
 	}
 
 	getScreenshotFilename(pagePath: string, viewportName: string): string {
@@ -354,11 +324,11 @@ class ScreenshotGenerator {
 		const results: ScreenshotResult[] = [];
 		for (const viewport of this.viewports) {
 			console.log(
-				`\n📸 Generating ${viewport.name} screenshots (${viewport.width}px)...`,
+				`\n📸 Generating ${viewport.name} screenshots (${viewport.width}x${viewport.height}px)...`,
 			);
 			const context = await browser.newContext({
 				ignoreHTTPSErrors: true,
-				viewport: { width: viewport.width, height: viewport.height || 720 },
+				viewport: { width: viewport.width, height: viewport.height },
 			});
 
 			for (const pagePath of paths) {
@@ -428,10 +398,11 @@ class ManifestWriter {
 	write(
 		baseUrl: string,
 		config: CrawlConfig,
+		viewports: ViewportConfig[],
 		paths: string[],
 		screenshots: ScreenshotResult[],
 	): void {
-		const manifest: Manifest = {
+		const manifest: ManifestData = {
 			version: "1.0",
 			generatedAt: new Date().toISOString(),
 			baseUrl: baseUrl,
@@ -442,10 +413,11 @@ class ManifestWriter {
 				hideSelectors: config.hideSelectors || [],
 			},
 			paths: paths,
+			viewports: viewports,
 			metadata: {
 				totalPaths: paths.length,
 				totalScreenshots: screenshots.length,
-				viewports: config.viewports.map((v) => v.name),
+				viewports: viewports.map((v) => v.name),
 			},
 		};
 
@@ -461,6 +433,9 @@ console.log("🚀 Visual Regression Baseline Generator");
 console.log(`📍 Base URL: ${baseUrl}`);
 console.log(`📁 Screenshots: ${snapshotsDir}`);
 console.log(`📄 Manifest: ${manifestPath}`);
+console.log(
+	`🖥️  Viewports: ${viewports.map((v) => `${v.name} (${v.width}x${v.height})`).join(", ")}`,
+);
 if (specificPath) {
 	console.log(`🎯 Single path mode: ${specificPath}`);
 }
@@ -474,7 +449,7 @@ console.log("");
 
 	const context = await browser.newContext({
 		ignoreHTTPSErrors: true,
-		viewport: { width: 1280, height: 720 },
+		viewport: { width: viewports[0].width, height: viewports[0].height },
 	});
 
 	const page = await context.newPage();
@@ -510,7 +485,7 @@ console.log("");
 
 	const generator = new ScreenshotGenerator(
 		baseUrl,
-		config.viewports,
+		viewports,
 		snapshotsDir,
 		config.hideSelectors,
 		config,
@@ -526,7 +501,13 @@ console.log("");
 	if (specificPath) {
 		console.log("\n📝 Creating manifest for single path...");
 	}
-	manifestWriter.write(baseUrl, config, discoveredPaths, screenshots);
+	manifestWriter.write(
+		baseUrl,
+		config,
+		viewports,
+		discoveredPaths,
+		screenshots,
+	);
 
 	console.log("\n🎉 Baseline generation complete!");
 

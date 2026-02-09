@@ -1,41 +1,12 @@
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { type Page, type Route, test } from "@playwright/test";
+import {
+	loadCrawlConfig,
+	loadManifest,
+	type ManifestData,
+} from "./viewport-config.ts";
 
-interface CrawlConfig {
-	timeout: number;
-	manifestPath: string;
-}
-
-interface ManifestData {
-	baseUrl: string;
-	paths: string[];
-}
-
-// Read config to get manifest path
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const configPath = path.join(__dirname, "crawl-config.json");
-const config: CrawlConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-
-// Resolve manifest path relative to config
-const configDir = path.dirname(configPath);
-const manifestPath = path.resolve(
-	configDir,
-	config.manifestPath || "./manifest.json",
-);
-
-// Check if manifest exists
-if (!fs.existsSync(manifestPath)) {
-	throw new Error(
-		`Manifest not found at ${manifestPath}\n` +
-			`Please run 'npm run visual:generate' first to create baseline screenshots and manifest.`,
-	);
-}
-
-const manifest: ManifestData = JSON.parse(
-	fs.readFileSync(manifestPath, "utf-8"),
-);
+const { config, configDir } = loadCrawlConfig();
+const manifest: ManifestData = loadManifest(config, configDir);
 
 // Setup external resource timeout to prevent networkidle blocking
 async function setupExternalResourceTimeout(

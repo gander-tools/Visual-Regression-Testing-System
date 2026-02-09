@@ -1,44 +1,61 @@
 #!/usr/bin/env tsx
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
-
-interface CrawlConfig {
-	timeout: number;
-	hideSelectors: string[];
-}
+import { getViewportByName, loadCrawlConfig } from "./viewport-config.ts";
 
 // Parse arguments
-const pagePath = process.argv[2];
+const args = process.argv.slice(2);
 const baseUrl = process.env.BASE_URL || "https://localhost";
 
+let pagePath: string | undefined;
+let viewportName: string | undefined;
+
+for (const arg of args) {
+	if (arg.startsWith("/")) {
+		pagePath = arg;
+	} else if (arg.startsWith("--viewport=")) {
+		viewportName = arg.replace("--viewport=", "");
+	} else if (!pagePath) {
+		pagePath = arg;
+	}
+}
+
 if (!pagePath) {
-	console.error("❌ Error: Page path is required");
+	console.error("Error: Page path is required");
 	console.log("\nUsage:");
-	console.log("  npm run visual:inspect <path>");
-	console.log("\nExample:");
+	console.log("  npm run visual:inspect <path> [--viewport=<name>]");
+	console.log("\nExamples:");
 	console.log("  npm run visual:inspect /media");
-	console.log("  npm run visual:inspect /artykul/feng-shui");
+	console.log("  npm run visual:inspect /media --viewport=mobile");
+	console.log("  npm run visual:inspect /media --viewport=tablet");
 	process.exit(1);
 }
 
-// Load config for hideSelectors
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const configPath = path.join(__dirname, "crawl-config.json");
-const config: CrawlConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+const { config, viewports } = loadCrawlConfig();
 
-console.log("🔍 Visual Regression Page Inspector\n");
-console.log(`📍 Base URL: ${baseUrl}`);
-console.log(`📄 Page: ${pagePath}`);
-console.log(`⏱️  Timeout: ${config.timeout}ms`);
-console.log(`\n🚀 Launching browser in DEBUG mode...`);
+// Resolve viewport
+const selectedViewport = viewportName
+	? getViewportByName(viewports, viewportName)
+	: viewports[0];
+
+if (!selectedViewport) {
+	console.error(
+		`Error: Unknown viewport "${viewportName}". Available: ${viewports.map((v) => v.name).join(", ")}`,
+	);
+	process.exit(1);
+}
+
+console.log("Visual Regression Page Inspector\n");
+console.log(`Base URL: ${baseUrl}`);
+console.log(`Page: ${pagePath}`);
+console.log(
+	`Viewport: ${selectedViewport.name} (${selectedViewport.width}x${selectedViewport.height})`,
+);
+console.log(`Timeout: ${config.timeout}ms`);
+console.log(`\nLaunching browser in DEBUG mode...`);
 console.log(`   - Headed: visible browser window`);
 console.log(`   - Slowmo: 500ms delay between actions`);
 console.log(`   - DevTools: use browser menu to open`);
-console.log(
-	`\n💡 Tip: Check Console tab for errors, Network tab for timeouts\n`,
-);
+console.log(`\nTip: Check Console tab for errors, Network tab for timeouts\n`);
 
 (async () => {
 	const browser = await chromium.launch({
@@ -48,7 +65,10 @@ console.log(
 
 	const context = await browser.newContext({
 		ignoreHTTPSErrors: true,
-		viewport: { width: 1280, height: 720 },
+		viewport: {
+			width: selectedViewport.width,
+			height: selectedViewport.height,
+		},
 	});
 
 	const page = await context.newPage();
@@ -56,26 +76,27 @@ console.log(
 	// Log console messages
 	page.on("console", (msg) => {
 		const type = msg.type();
-		const emoji = type === "error" ? "❌" : type === "warning" ? "⚠️" : "ℹ️";
-		console.log(`${emoji} Console [${type}]:`, msg.text());
+		const prefix =
+			type === "error" ? "[error]" : type === "warning" ? "[warn]" : "[info]";
+		console.log(`${prefix} Console [${type}]:`, msg.text());
 	});
 
 	// Log page errors
 	page.on("pageerror", (error) => {
-		console.error("❌ Page Error:", error.message);
+		console.error("[error] Page Error:", error.message);
 	});
 
 	// Log failed requests
 	page.on("requestfailed", (request) => {
 		console.error(
-			"❌ Request Failed:",
+			"[error] Request Failed:",
 			request.url(),
 			request.failure()?.errorText,
 		);
 	});
 
 	try {
-		console.log(`🌐 Navigating to ${baseUrl}${pagePath}...`);
+		console.log(`Navigating to ${baseUrl}${pagePath}...`);
 
 		const response = await page.goto(`${baseUrl}${pagePath}`, {
 			waitUntil: "networkidle",
@@ -83,11 +104,11 @@ console.log(
 		});
 
 		const status = response?.status();
-		console.log(`✅ Page loaded: HTTP ${status}`);
+		console.log(`Page loaded: HTTP ${status}`);
 
 		// Hide configured selectors
 		if (config.hideSelectors && config.hideSelectors.length > 0) {
-			console.log(`\n🙈 Hiding ${config.hideSelectors.length} selectors...`);
+			console.log(`\nHiding ${config.hideSelectors.length} selectors...`);
 			for (const selector of config.hideSelectors) {
 				await page.evaluate((sel: string) => {
 					const elements = document.querySelectorAll(sel);
@@ -96,24 +117,24 @@ console.log(
 			}
 		}
 
-		console.log(`\n✅ Ready for inspection!`);
-		console.log(`📝 Page will stay open until you close the browser window.\n`);
+		console.log(`\nReady for inspection!`);
+		console.log(`Page will stay open until you close the browser window.\n`);
 
 		// Keep page open until manually closed
 		await page.waitForEvent("close", { timeout: 0 });
 	} catch (error) {
-		console.error(`\n❌ Error loading page:`, (error as Error).message);
-		console.log(`\n💡 Common issues:`);
+		console.error(`\nError loading page:`, (error as Error).message);
+		console.log(`\nCommon issues:`);
 		console.log(`   - Timeout: Page takes too long to reach networkidle`);
 		console.log(`   - 404/500: Page doesn't exist or server error`);
 		console.log(`   - SSL: Certificate issues (check ignoreHTTPSErrors)`);
-		console.log(`\n🔍 Check DevTools Console and Network tabs for details.\n`);
+		console.log(`\nCheck DevTools Console and Network tabs for details.\n`);
 
 		// Keep browser open even on error for debugging
 		console.log(`Browser will stay open for 30 seconds for inspection...`);
 		await new Promise((resolve) => setTimeout(resolve, 30000));
 	} finally {
 		await browser.close();
-		console.log("\n👋 Browser closed.");
+		console.log("\nBrowser closed.");
 	}
 })();
