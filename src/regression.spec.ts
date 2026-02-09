@@ -52,7 +52,7 @@ async function hideElements(page: Page, selectors: string[]): Promise<void> {
 		try {
 			await page.evaluate((sel: string) => {
 				const elements = document.querySelectorAll(sel);
-				elements.forEach((el) => el.remove());
+				for (const el of elements) el.remove();
 			}, selector);
 		} catch {
 			// Selector might not exist, that's OK

@@ -89,9 +89,7 @@ console.log(
 			for (const selector of config.hideSelectors) {
 				await page.evaluate((sel: string) => {
 					const elements = document.querySelectorAll(sel);
-					elements.forEach(
-						(el) => ((el as HTMLElement).style.display = "none"),
-					);
+					for (const el of elements) (el as HTMLElement).style.display = "none";
 				}, selector);
 			}
 		}
