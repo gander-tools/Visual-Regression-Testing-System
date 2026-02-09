@@ -6,7 +6,7 @@ function createMockActions() {
 	return {
 		initConfig: mock.fn<() => void>(),
 		generateBaseline: mock.fn<(p?: string) => Promise<void>>(async () => {}),
-		runVisualTests: mock.fn<(p?: string) => void>(),
+		runVisualTests: mock.fn<(p?: string) => Promise<void>>(async () => {}),
 		inspectPage: mock.fn<(path: string, viewport?: string) => Promise<void>>(
 			async () => {},
 		),

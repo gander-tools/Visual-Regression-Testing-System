@@ -21,7 +21,7 @@
 		"visual:inspect": "tsx src/cli.ts inspect",
 		"typecheck": "tsc --noEmit",
 		"check": "npx -y @biomejs/biome check",
-		"test:unit": "tsx --test src/cli.test.ts",
+		"test:unit": "tsx --test src/cli.test.ts src/run-visual-tests.test.ts",
 		"check:fix": "npx -y @biomejs/biome check --write"
 	},
 	"dependencies": {

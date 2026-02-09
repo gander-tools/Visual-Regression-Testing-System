@@ -5,7 +5,7 @@ import { Command } from "commander";
 export interface CliActions {
 	initConfig: () => void;
 	generateBaseline: (path?: string) => Promise<void>;
-	runVisualTests: (path?: string) => void;
+	runVisualTests: (path?: string) => Promise<void>;
 	inspectPage: (path: string, viewport?: string) => Promise<void>;
 }
 
@@ -20,7 +20,7 @@ const defaultActions: CliActions = {
 	},
 	runVisualTests: async (p) => {
 		const m = await import("./run-visual-tests.ts");
-		m.runVisualTests(p);
+		await m.runVisualTests(p);
 	},
 	inspectPage: async (path, viewport) => {
 		const m = await import("./inspect-page.ts");
