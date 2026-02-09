@@ -1,24 +1,24 @@
 {
-  "name": "@gander-tools/visual-regression-testing-system",
-  "type": "module",
-  "devDependencies": {
-    "@playwright/test": "^1.58.2",
-    "@types/node": "^24.0.0",
-    "tsx": "^4.21.0",
-    "typescript": "^5.8.0"
-  },
-  "engines": {
-    "node": ">=24"
-  },
-  "license": "GPL-3.0-only",
-  "private": true,
-  "scripts": {
-    "visual:generate": "tsx src/generate-visual-baseline.ts",
-    "visual:test": "tsx src/run-visual-tests.ts",
-    "visual:report": "playwright show-report .visual-regression/report",
-    "visual:inspect": "tsx src/inspect-page.ts",
-    "typecheck": "tsc --noEmit",
-    "check": "npx -y @biomejs/biome check",
-    "check:fix": "npx -y @biomejs/biome check --write"
-  }
+	"name": "@gander-tools/visual-regression-testing-system",
+	"type": "module",
+	"devDependencies": {
+		"@playwright/test": "^1.58.2",
+		"@types/node": "^24.0.0",
+		"tsx": "^4.21.0",
+		"typescript": "^5.8.0"
+	},
+	"engines": {
+		"node": ">=24"
+	},
+	"license": "GPL-3.0-only",
+	"private": true,
+	"scripts": {
+		"visual:generate": "tsx src/generate-visual-baseline.ts",
+		"visual:test": "tsx src/run-visual-tests.ts",
+		"visual:report": "playwright show-report .visual-regression/report",
+		"visual:inspect": "tsx src/inspect-page.ts",
+		"typecheck": "tsc --noEmit",
+		"check": "npx -y @biomejs/biome check",
+		"check:fix": "npx -y @biomejs/biome check --write"
+	}
 }
