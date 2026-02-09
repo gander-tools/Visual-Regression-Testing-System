@@ -1,22 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { pathToFileURL } from "node:url";
+import { type CrawlConfig, defaultConfig } from "./crawler-config.ts";
+
+export type { CrawlConfig };
 
 export interface ViewportConfig {
 	name: string;
 	width: number;
 	height: number;
-}
-
-export interface CrawlConfig {
-	timeout: number;
-	externalResourceTimeout: number;
-	ignoreQueryParams: boolean;
-	blacklistPatterns: string[];
-	viewports: Array<{ name: string; width: number; height?: number }>;
-	outputDir: string;
-	manifestPath: string;
-	hideSelectors: string[];
 }
 
 export interface GenerationError {
@@ -59,7 +51,8 @@ function validateViewports(
 ): ViewportConfig[] {
 	if (!rawViewports || rawViewports.length === 0) {
 		throw new Error(
-			"No viewports defined in crawl-config.json. At least one viewport is required.",
+			"No viewports defined in configuration. At least one viewport is required.\n" +
+				"Run 'npm run visual:init' to create .crawler-config.ts with default viewports.",
 		);
 	}
 
@@ -105,23 +98,37 @@ function validateViewports(
 }
 
 /**
- * Load and validate the crawl config from src/crawl-config.json.
+ * Load crawler configuration by merging default config with user overrides
+ * from .crawler-config.ts in the project root. All paths are relative to project root.
  */
-export function loadCrawlConfig(): {
+export async function loadCrawlConfig(): Promise<{
 	config: CrawlConfig;
 	configDir: string;
 	viewports: ViewportConfig[];
-} {
-	const __dirname = path.dirname(fileURLToPath(import.meta.url));
-	const configPath = path.join(__dirname, "crawl-config.json");
-	const config: CrawlConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-	const configDir = path.dirname(configPath);
+}> {
+	const rootDir = process.cwd();
+
+	let config: CrawlConfig = { ...defaultConfig };
+
+	const userConfigPath = path.join(rootDir, ".crawler-config.ts");
+	if (fs.existsSync(userConfigPath)) {
+		try {
+			const userModule = await import(pathToFileURL(userConfigPath).href);
+			const userConfig: Partial<CrawlConfig> = userModule.default || {};
+			config = { ...config, ...userConfig };
+		} catch (error) {
+			console.warn(
+				`Warning: Failed to load .crawler-config.ts: ${(error as Error).message}`,
+			);
+		}
+	}
+
 	const viewports = validateViewports(config.viewports);
-	return { config, configDir, viewports };
+	return { config, configDir: rootDir, viewports };
 }
 
 /**
- * Load and parse manifest.json from the path specified in crawl-config.json.
+ * Load and parse manifest.json from the path specified in config.
  * Throws if manifest does not exist.
  */
 export function loadManifest(
@@ -130,7 +137,7 @@ export function loadManifest(
 ): ManifestData {
 	const manifestPath = path.resolve(
 		configDir,
-		config.manifestPath || "./manifest.json",
+		config.manifestPath || ".visual-regression/manifest.json",
 	);
 
 	if (!fs.existsSync(manifestPath)) {

@@ -42,20 +42,20 @@ if (arg?.startsWith("/")) {
 	specificPath = arg;
 }
 
-const { config, configDir, viewports } = loadCrawlConfig();
+const { config, configDir, viewports } = await loadCrawlConfig();
 
-// Resolve paths relative to config file location
+// Resolve paths relative to project root
 const snapshotsDir = path.resolve(
 	configDir,
-	config.outputDir || "../regression.spec.ts-snapshots",
+	config.outputDir || ".visual-regression/screenshots/baseline",
 );
 const manifestPath = path.resolve(
 	configDir,
-	config.manifestPath || "./manifest.json",
+	config.manifestPath || ".visual-regression/manifest.json",
 );
 
 // Clean output directory before generating (preserve hidden files like .git, .gitignore)
-const visualRegressionDir = path.resolve(configDir, "../.visual-regression");
+const visualRegressionDir = path.resolve(configDir, ".visual-regression");
 if (fs.existsSync(visualRegressionDir)) {
 	const entries = fs.readdirSync(visualRegressionDir, { withFileTypes: true });
 	for (const entry of entries) {
@@ -505,7 +505,9 @@ console.log("");
 
 		console.log(`\n✅ Discovered ${discoveredPaths.length} pages`);
 		for (let i = 0; i < discoveredPaths.length; i++)
-			console.log(`   [${i + 1}/${discoveredPaths.length}] ${discoveredPaths[i]}`);
+			console.log(
+				`   [${i + 1}/${discoveredPaths.length}] ${discoveredPaths[i]}`,
+			);
 	}
 
 	fs.mkdirSync(snapshotsDir, { recursive: true });

@@ -30,7 +30,7 @@ if (!pagePath) {
 	process.exit(1);
 }
 
-const { config, viewports } = loadCrawlConfig();
+const { config, viewports } = await loadCrawlConfig();
 
 // Resolve viewport
 const selectedViewport = viewportName

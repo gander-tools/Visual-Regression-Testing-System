@@ -6,7 +6,7 @@ import {
 	type ManifestData,
 } from "./viewport-config.ts";
 
-const { config, configDir } = loadCrawlConfig();
+const { config, configDir } = await loadCrawlConfig();
 const manifest: ManifestData = loadManifest(config, configDir);
 
 // Setup external resource timeout to prevent networkidle blocking
