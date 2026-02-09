@@ -1,5 +1,6 @@
 import { expect, type Page, type Route, test } from "@playwright/test";
 import {
+	hasGenerationError,
 	loadCrawlConfig,
 	loadManifest,
 	type ManifestData,
@@ -94,7 +95,17 @@ for (const viewport of viewports) {
 		});
 
 		for (const pagePath of manifest.paths) {
+			const genError = hasGenerationError(manifest, pagePath, viewport.name);
+
 			test(`${pagePath} should match baseline`, async ({ page }) => {
+				if (genError) {
+					test.skip(
+						true,
+						`Skipped: baseline not generated (${genError.stage} failed: ${genError.message})`,
+					);
+					return;
+				}
+
 				// Setup external resource timeout before navigation
 				await setupExternalResourceTimeout(page, manifest.baseUrl, 20000);
 
