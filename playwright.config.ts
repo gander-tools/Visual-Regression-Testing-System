@@ -11,6 +11,7 @@ const snapshotsDir = path.resolve(
 
 export default defineConfig({
 	testDir: "./src",
+	testMatch: "*.spec.ts",
 	timeout: 30000,
 	expect: {
 		timeout: 10000,
