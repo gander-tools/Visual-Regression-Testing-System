@@ -13,6 +13,7 @@
 	"license": "GPL-3.0-only",
 	"private": true,
 	"scripts": {
+		"visual:init": "tsx src/init-config.ts",
 		"visual:generate": "tsx src/generate-visual-baseline.ts",
 		"visual:test": "tsx src/run-visual-tests.ts",
 		"visual:report": "playwright show-report .visual-regression/report",

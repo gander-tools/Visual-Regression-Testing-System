@@ -1,18 +1,12 @@
-import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { defineConfig } from "@playwright/test";
+import { loadCrawlConfig } from "./src/viewport-config.ts";
 
-// Read config to get snapshots directory
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const configPath = path.join(__dirname, "src/crawl-config.json");
-const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+const { config, configDir } = await loadCrawlConfig();
 
-// Resolve snapshots path relative to config
-const configDir = path.dirname(configPath);
 const snapshotsDir = path.resolve(
 	configDir,
-	config.outputDir || "../regression.spec.ts-snapshots",
+	config.outputDir || ".visual-regression/screenshots/baseline",
 );
 
 export default defineConfig({

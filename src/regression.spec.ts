@@ -6,7 +6,7 @@ import {
 	type ManifestData,
 } from "./viewport-config.ts";
 
-const { config, configDir, viewports } = loadCrawlConfig();
+const { config, configDir, viewports } = await loadCrawlConfig();
 const manifest: ManifestData = loadManifest(config, configDir);
 
 // Helper to remove elements before screenshot
