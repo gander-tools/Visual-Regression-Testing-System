@@ -19,6 +19,13 @@ export interface CrawlConfig {
 	hideSelectors: string[];
 }
 
+export interface GenerationError {
+	path: string;
+	viewport: string;
+	stage: "load" | "screenshot";
+	message: string;
+}
+
 export interface ManifestData {
 	version: string;
 	generatedAt: string;
@@ -31,9 +38,11 @@ export interface ManifestData {
 	};
 	paths: string[];
 	viewports: ViewportConfig[];
+	errors: GenerationError[];
 	metadata: {
 		totalPaths: number;
 		totalScreenshots: number;
+		totalErrors: number;
 		viewports: string[];
 	};
 }
@@ -142,4 +151,29 @@ export function getViewportByName(
 	name: string,
 ): ViewportConfig | undefined {
 	return viewports.find((v) => v.name === name);
+}
+
+/**
+ * Check if a specific path+viewport combination has a generation error.
+ */
+export function hasGenerationError(
+	manifest: ManifestData,
+	pagePath: string,
+	viewportName: string,
+): GenerationError | undefined {
+	return manifest.errors?.find(
+		(e) => e.path === pagePath && e.viewport === viewportName,
+	);
+}
+
+/**
+ * Check if a path has errors for ALL viewports (completely failed).
+ */
+export function hasAllViewportsErrored(
+	manifest: ManifestData,
+	pagePath: string,
+): boolean {
+	if (!manifest.errors?.length) return false;
+	const pathErrors = manifest.errors.filter((e) => e.path === pagePath);
+	return pathErrors.length >= manifest.viewports.length;
 }

@@ -9,6 +9,7 @@ import {
 } from "@playwright/test";
 import {
 	type CrawlConfig,
+	type GenerationError,
 	loadCrawlConfig,
 	type ManifestData,
 	type ViewportConfig,
@@ -305,9 +306,7 @@ class ScreenshotGenerator {
 				});
 			} catch {
 				// forceProceed: take screenshot of whatever loaded, never give up
-				console.log(
-					`   ⚡ Brutal: proceeding with partial content`,
-				);
+				console.log(`   ⚡ Brutal: proceeding with partial content`);
 			}
 		} else {
 			await page.goto(url, {
@@ -320,8 +319,9 @@ class ScreenshotGenerator {
 	async generateScreenshots(
 		browser: Browser,
 		paths: string[],
-	): Promise<ScreenshotResult[]> {
+	): Promise<{ results: ScreenshotResult[]; errors: GenerationError[] }> {
 		const results: ScreenshotResult[] = [];
+		const errors: GenerationError[] = [];
 		for (const viewport of this.viewports) {
 			console.log(
 				`\n📸 Generating ${viewport.name} screenshots (${viewport.width}x${viewport.height}px)...`,
@@ -355,9 +355,16 @@ class ScreenshotGenerator {
 						break;
 					} catch (error) {
 						if (strategy === strategyList[strategyList.length - 1]) {
+							const errorMsg = (error as Error).message;
 							console.warn(
-								`   ⚠️  Failed ${pagePath}: ${(error as Error).message}`,
+								`   ⚠️  Failed to load ${pagePath} [${viewport.name}]: ${errorMsg}`,
 							);
+							errors.push({
+								path: pagePath,
+								viewport: viewport.name,
+								stage: "load",
+								message: errorMsg,
+							});
 						}
 					}
 				}
@@ -375,16 +382,23 @@ class ScreenshotGenerator {
 					await page?.screenshot({ path: filepath, fullPage: true });
 					results.push({ path: pagePath, viewport: viewport.name, filename });
 				} catch (error) {
+					const errorMsg = (error as Error).message;
 					console.warn(
-						`   ⚠️  Screenshot failed ${pagePath}: ${(error as Error).message}`,
+						`   ⚠️  Screenshot failed ${pagePath} [${viewport.name}]: ${errorMsg}`,
 					);
+					errors.push({
+						path: pagePath,
+						viewport: viewport.name,
+						stage: "screenshot",
+						message: errorMsg,
+					});
 				} finally {
 					if (page) await page.close();
 				}
 			}
 			await context.close();
 		}
-		return results;
+		return { results, errors };
 	}
 }
 
@@ -401,6 +415,7 @@ class ManifestWriter {
 		viewports: ViewportConfig[],
 		paths: string[],
 		screenshots: ScreenshotResult[],
+		errors: GenerationError[],
 	): void {
 		const manifest: ManifestData = {
 			version: "1.0",
@@ -414,9 +429,11 @@ class ManifestWriter {
 			},
 			paths: paths,
 			viewports: viewports,
+			errors: errors,
 			metadata: {
 				totalPaths: paths.length,
 				totalScreenshots: screenshots.length,
+				totalErrors: errors.length,
 				viewports: viewports.map((v) => v.name),
 			},
 		};
@@ -490,12 +507,24 @@ console.log("");
 		config.hideSelectors,
 		config,
 	);
-	const screenshots = await generator.generateScreenshots(
+	const { results: screenshots, errors } = await generator.generateScreenshots(
 		browser,
 		discoveredPaths,
 	);
 
 	console.log(`\n✅ Generated ${screenshots.length} screenshots`);
+
+	if (errors.length > 0) {
+		console.log(`\n⚠️  ${errors.length} error(s) during generation:`);
+		for (const err of errors) {
+			console.log(
+				`   ❌ [${err.viewport}] ${err.path} — ${err.stage} failed: ${err.message}`,
+			);
+		}
+		console.log(
+			"\n   These path+viewport combinations will be skipped during testing.",
+		);
+	}
 
 	const manifestWriter = new ManifestWriter(manifestPath);
 	if (specificPath) {
@@ -507,6 +536,7 @@ console.log("");
 		viewports,
 		discoveredPaths,
 		screenshots,
+		errors,
 	);
 
 	console.log("\n🎉 Baseline generation complete!");

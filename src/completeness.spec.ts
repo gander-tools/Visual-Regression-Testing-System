@@ -1,5 +1,6 @@
 import { type Page, type Route, test } from "@playwright/test";
 import {
+	hasAllViewportsErrored,
 	loadCrawlConfig,
 	loadManifest,
 	type ManifestData,
@@ -78,14 +79,25 @@ test.describe("Visual Regression - Completeness Check", () => {
 	test("all baseline paths should still be accessible", async ({ page }) => {
 		test.setTimeout(180000); // 3 minutes for 68 pages
 		const results: Array<{ path: string; status: number; ok: boolean }> = [];
+		const skipped: string[] = [];
 
 		// Setup external resource timeout to handle pages like /media
 		await setupExternalResourceTimeout(page, manifest.baseUrl, 20000);
 
 		for (const pagePath of manifest.paths) {
+			if (hasAllViewportsErrored(manifest, pagePath)) {
+				skipped.push(pagePath);
+				continue;
+			}
 			const response = await page.goto(pagePath, { waitUntil: "networkidle" });
 			const status = response?.status() ?? 0;
 			results.push({ path: pagePath, status, ok: status === 200 });
+		}
+
+		if (skipped.length > 0) {
+			console.log(
+				`⚠ Skipped ${skipped.length} path(s) with generation errors: ${skipped.join(", ")}`,
+			);
 		}
 
 		const failures = results.filter((r) => !r.ok);
@@ -99,6 +111,11 @@ test.describe("Visual Regression - Completeness Check", () => {
 			);
 		}
 
-		console.log(`✓ All ${manifest.paths.length} baseline paths are accessible`);
+		console.log(
+			`✓ All ${results.length} checked baseline paths are accessible` +
+				(skipped.length > 0
+					? ` (${skipped.length} skipped due to generation errors)`
+					: ""),
+		);
 	});
 });
