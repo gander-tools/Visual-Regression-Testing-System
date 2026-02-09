@@ -14,9 +14,17 @@ if (fs.existsSync(configPath)) {
 const template = `import type { CrawlConfig } from "./src/crawler-config.ts";
 
 const config: Partial<CrawlConfig> = {
-\tblacklistPatterns: ["/_profiler/*"],
-\tviewports: [{ name: "desktop", width: 1280 }],
-\thideSelectors: [".sf-toolbar", "[data-hx-include]", ".fb-share-button"],
+\tblacklistPatterns: [
+\t\t"/_profiler/*",
+\t],
+\tviewports: [
+\t\t{ name: "desktop", width: 1280 },
+\t],
+\thideSelectors: [
+\t\t".sf-toolbar",
+\t\t"[data-hx-include]",
+\t\t".fb-share-button",
+\t],
 };
 
 export default config;
