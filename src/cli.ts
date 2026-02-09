@@ -32,7 +32,7 @@ export function createProgram(actions: CliActions = defaultActions): Command {
 	const program = new Command();
 
 	program
-		.name("visual-regression")
+		.name("npm run cli --")
 		.description("Visual regression testing CLI")
 		.version("1.0.0");
 
