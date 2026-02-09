@@ -170,14 +170,16 @@ class PageCrawler {
 		);
 
 		const queue: string[] = ["/"];
+		let crawlIndex = 0;
 		while (queue.length > 0) {
 			const currentPath = queue.shift();
 			if (currentPath === undefined) break;
 			if (this.visited.has(currentPath)) continue;
 			this.visited.add(currentPath);
+			crawlIndex++;
 
 			try {
-				console.log(`🔍 Crawling: ${currentPath}`);
+				console.log(`🔍 [${crawlIndex}] Crawling: ${currentPath}`);
 				const response = await page.goto(this.baseUrl + currentPath, {
 					timeout: this.config.timeout,
 					waitUntil: "networkidle",
@@ -185,7 +187,7 @@ class PageCrawler {
 
 				if (!response || !response.ok()) {
 					console.warn(
-						`⚠️  Skipping ${currentPath} - HTTP ${response?.status() || "error"}`,
+						`⚠️  [${crawlIndex}] Skipping ${currentPath} - HTTP ${response?.status() || "error"}`,
 					);
 					continue;
 				}
@@ -195,15 +197,20 @@ class PageCrawler {
 				const links = await page.$$eval("a[href]", (anchors) =>
 					anchors.map((a) => (a as HTMLAnchorElement).href),
 				);
+				let newLinkCount = 0;
 				for (const link of links) {
 					const normalizedPath = this.normalizePath(link);
 					if (normalizedPath && !this.visited.has(normalizedPath)) {
 						queue.push(normalizedPath);
+						newLinkCount++;
 					}
 				}
+				console.log(
+					`   Found ${links.length} links, ${newLinkCount} new to queue (queue size: ${queue.length})`,
+				);
 			} catch (error) {
 				console.warn(
-					`⚠️  Error crawling ${currentPath}: ${(error as Error).message}`,
+					`⚠️  [${crawlIndex}] Error crawling ${currentPath}: ${(error as Error).message}`,
 				);
 			}
 		}
@@ -331,7 +338,9 @@ class ScreenshotGenerator {
 				viewport: { width: viewport.width, height: viewport.height },
 			});
 
-			for (const pagePath of paths) {
+			for (let i = 0; i < paths.length; i++) {
+				const pagePath = paths[i];
+				const pathIndex = `[${i + 1}/${paths.length}]`;
 				const fullUrl = this.baseUrl + pagePath;
 				let loaded = false;
 				let page: Page | null = null;
@@ -348,7 +357,7 @@ class ScreenshotGenerator {
 						page = await context.newPage();
 
 						console.log(
-							`   ${pagePath}${strategy !== "normal" ? ` (${strategy})` : ""}`,
+							`   ${pathIndex} ${pagePath}${strategy !== "normal" ? ` (${strategy})` : ""}`,
 						);
 						await this.tryPageLoad(page, fullUrl, strategy);
 						loaded = true;
@@ -357,7 +366,7 @@ class ScreenshotGenerator {
 						if (strategy === strategyList[strategyList.length - 1]) {
 							const errorMsg = (error as Error).message;
 							console.warn(
-								`   ⚠️  Failed to load ${pagePath} [${viewport.name}]: ${errorMsg}`,
+								`   ${pathIndex} ⚠️  Failed to load ${pagePath} [${viewport.name}]: ${errorMsg}`,
 							);
 							errors.push({
 								path: pagePath,
@@ -384,7 +393,7 @@ class ScreenshotGenerator {
 				} catch (error) {
 					const errorMsg = (error as Error).message;
 					console.warn(
-						`   ⚠️  Screenshot failed ${pagePath} [${viewport.name}]: ${errorMsg}`,
+						`   ${pathIndex} ⚠️  Screenshot failed ${pagePath} [${viewport.name}]: ${errorMsg}`,
 					);
 					errors.push({
 						path: pagePath,
@@ -495,7 +504,8 @@ console.log("");
 		discoveredPaths = await crawler.crawl(page);
 
 		console.log(`\n✅ Discovered ${discoveredPaths.length} pages`);
-		for (const pagePath of discoveredPaths) console.log(`   - ${pagePath}`);
+		for (let i = 0; i < discoveredPaths.length; i++)
+			console.log(`   [${i + 1}/${discoveredPaths.length}] ${discoveredPaths[i]}`);
 	}
 
 	fs.mkdirSync(snapshotsDir, { recursive: true });
