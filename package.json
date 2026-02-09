@@ -17,6 +17,8 @@
     "visual:test": "tsx src/run-visual-tests.ts",
     "visual:report": "playwright show-report .visual-regression/report",
     "visual:inspect": "tsx src/inspect-page.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check": "npx -y @biomejs/biome check",
+    "check:fix": "npx -y @biomejs/biome check --write"
   }
 }
