@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "@playwright/test";
 
 // Read config to get snapshots directory
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const configPath = path.join(__dirname, "src/crawl-config.json");
 const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 
