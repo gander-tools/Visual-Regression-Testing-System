@@ -58,7 +58,7 @@ if (arg && arg.startsWith('/')) {
   specificPath = arg;
 }
 
-const configPath = path.join(__dirname, '../tests/visual/fixtures/crawl-config.json');
+const configPath = path.join(__dirname, '../visual/fixtures/crawl-config.json');
 
 const config: CrawlConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 

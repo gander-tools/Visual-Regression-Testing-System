@@ -13,10 +13,10 @@
   "license": "GPL-3.0-only",
   "private": true,
   "scripts": {
-    "visual:generate": "tsx scripts/generate-visual-baseline.ts",
-    "visual:test": "tsx scripts/run-visual-tests.ts",
+    "visual:generate": "tsx src/scripts/generate-visual-baseline.ts",
+    "visual:test": "tsx src/scripts/run-visual-tests.ts",
     "visual:report": "playwright show-report .visual-regression/report",
-    "visual:inspect": "tsx scripts/inspect-page.ts",
+    "visual:inspect": "tsx src/scripts/inspect-page.ts",
     "typecheck": "tsc --noEmit"
   }
 }
