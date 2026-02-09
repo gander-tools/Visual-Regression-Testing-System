@@ -48,10 +48,11 @@ type LoadStrategy = "normal" | "extra_timeout" | "brutal";
 
 interface StrategyConfig {
 	timeout: number;
-	waitUntil: "networkidle" | "domcontentloaded";
+	waitUntil: "networkidle" | "domcontentloaded" | "commit";
 	externalTimeout?: number;
 	maxRetries?: number;
 	blockExternal?: boolean;
+	forceProceed?: boolean;
 }
 
 // Parse arguments: tsx script.ts [path|baseUrl]
@@ -298,9 +299,10 @@ class ScreenshotGenerator {
 				maxRetries: 2,
 			},
 			brutal: {
-				timeout: 30000,
-				waitUntil: "domcontentloaded",
+				timeout: 120000,
+				waitUntil: "commit",
 				blockExternal: true,
+				forceProceed: true,
 			},
 		};
 
@@ -325,10 +327,24 @@ class ScreenshotGenerator {
 			});
 		}
 
-		await page.goto(url, {
-			timeout: strategyConfig.timeout,
-			waitUntil: strategyConfig.waitUntil,
-		});
+		if (strategyConfig.forceProceed) {
+			try {
+				await page.goto(url, {
+					timeout: strategyConfig.timeout,
+					waitUntil: strategyConfig.waitUntil,
+				});
+			} catch {
+				// forceProceed: take screenshot of whatever loaded, never give up
+				console.log(
+					`   ⚡ Brutal: proceeding with partial content`,
+				);
+			}
+		} else {
+			await page.goto(url, {
+				timeout: strategyConfig.timeout,
+				waitUntil: strategyConfig.waitUntil,
+			});
+		}
 	}
 
 	async generateScreenshots(
