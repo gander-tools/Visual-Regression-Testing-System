@@ -195,7 +195,8 @@ class PageCrawler {
 
 		const queue: string[] = ["/"];
 		while (queue.length > 0) {
-			const currentPath = queue.shift()!;
+			const currentPath = queue.shift();
+			if (currentPath === undefined) break;
 			if (this.visited.has(currentPath)) continue;
 			this.visited.add(currentPath);
 
@@ -269,7 +270,7 @@ class ScreenshotGenerator {
 			try {
 				await page.evaluate((sel: string) => {
 					const elements = document.querySelectorAll(sel);
-					elements.forEach((el) => el.remove());
+					for (const el of elements) el.remove();
 				}, selector);
 			} catch {
 				// Selector might not exist on this page, that's OK
@@ -378,7 +379,7 @@ class ScreenshotGenerator {
 				}
 
 				try {
-					await this.hideElements(page!);
+					if (page) await this.hideElements(page);
 
 					const filename = this.getScreenshotFilename(pagePath, viewport.name);
 					const filepath = path.join(this.outputDir, filename);
@@ -483,7 +484,7 @@ console.log("");
 		discoveredPaths = await crawler.crawl(page);
 
 		console.log(`\n✅ Discovered ${discoveredPaths.length} pages`);
-		discoveredPaths.forEach((pagePath) => console.log(`   - ${pagePath}`));
+		for (const pagePath of discoveredPaths) console.log(`   - ${pagePath}`);
 	}
 
 	fs.mkdirSync(snapshotsDir, { recursive: true });
