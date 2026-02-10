@@ -66,11 +66,11 @@ class CustomReporter implements Reporter {
 		}
 
 		console.log(`\n${"=".repeat(60)}`);
-		console.log("  Testy zakonczone!");
+		console.log("  Tests completed!");
 		console.log("=".repeat(60));
 		console.log(`  Status: ${result.status}`);
-		console.log(`  Czas trwania: ${(result.duration / 1000).toFixed(2)}s`);
-		console.log(`\n  Aby otworzyc raport HTML, uruchom:`);
+		console.log(`  Duration: ${(result.duration / 1000).toFixed(2)}s`);
+		console.log(`\n  To open the HTML report, run:`);
 		console.log("  npm run cli report");
 		console.log(`${"=".repeat(60)}\n`);
 
