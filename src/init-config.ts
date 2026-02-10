@@ -28,6 +28,8 @@ const config: Partial<CrawlConfig> = {
 \t\t"[data-hx-include]",
 \t\t".fb-share-button",
 \t],
+\t// Visual regression sensitivity: 0.01 = 1% pixel difference allowed (default)
+\t// maxDiffPixelRatio: 0.01,
 };
 
 export default config;

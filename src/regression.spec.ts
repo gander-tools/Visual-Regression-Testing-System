@@ -1,4 +1,6 @@
+import path from "node:path";
 import { expect, type Page, type Route, test } from "@playwright/test";
+import { readPngDimensions } from "./png-utils.ts";
 import {
 	hasGenerationError,
 	loadCrawlConfig,
@@ -8,6 +10,15 @@ import {
 
 const { config, configDir, viewports } = await loadCrawlConfig();
 const manifest: ManifestData = loadManifest(config, configDir);
+
+// Allow overriding baseUrl via BASE_URL env var (e.g., test staging against production baseline)
+const testBaseUrl = process.env.BASE_URL || manifest.baseUrl;
+
+// Get baseline directory path
+const snapshotsDir = path.resolve(
+	configDir,
+	config.outputDir || ".visual-regression/screenshots/baseline",
+);
 
 // Helper to remove elements before screenshot
 async function hideElements(page: Page, selectors: string[]): Promise<void> {
@@ -91,7 +102,7 @@ for (const viewport of viewports) {
 	test.describe(`Visual Regression - ${viewport.name}`, () => {
 		test.use({
 			viewport: { width: viewport.width, height: viewport.height },
-			baseURL: manifest.baseUrl,
+			baseURL: testBaseUrl,
 		});
 
 		for (const pagePath of manifest.paths) {
@@ -106,8 +117,33 @@ for (const viewport of viewports) {
 					return;
 				}
 
+				const safePath =
+					pagePath === "/"
+						? "homepage"
+						: pagePath.replace(/\//g, "-").replace(/^-/, "");
+				const screenshotName = `${viewport.name}-${safePath}.png`;
+
+				// Check if baseline exists and get its dimensions
+				const baselinePath = path.join(snapshotsDir, screenshotName);
+				const baselineDims = readPngDimensions(baselinePath);
+
+				// If baseline exists and has different dimensions, adjust viewport
+				if (baselineDims) {
+					const currentViewport = page.viewportSize();
+					if (
+						currentViewport &&
+						(currentViewport.width !== baselineDims.width ||
+							currentViewport.height !== baselineDims.height)
+					) {
+						await page.setViewportSize({
+							width: baselineDims.width,
+							height: baselineDims.height,
+						});
+					}
+				}
+
 				// Setup external resource timeout before navigation
-				await setupExternalResourceTimeout(page, manifest.baseUrl, 20000);
+				await setupExternalResourceTimeout(page, testBaseUrl, 20000);
 
 				await page.goto(pagePath);
 				await page.waitForLoadState("networkidle");
@@ -115,15 +151,9 @@ for (const viewport of viewports) {
 				// Hide elements that should not be in screenshots
 				await hideElements(page, manifest.crawlerConfig.hideSelectors);
 
-				const safePath =
-					pagePath === "/"
-						? "homepage"
-						: pagePath.replace(/\//g, "-").replace(/^-/, "");
-				const screenshotName = `${viewport.name}-${safePath}.png`;
-
 				await expect(page).toHaveScreenshot(screenshotName, {
 					fullPage: true,
-					maxDiffPixelRatio: 0.01,
+					maxDiffPixelRatio: config.maxDiffPixelRatio,
 				});
 			});
 		}
