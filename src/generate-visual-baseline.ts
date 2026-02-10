@@ -1,12 +1,8 @@
 #!/usr/bin/env tsx
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import {
-	type Browser,
-	chromium,
-	type Page,
-	type Route,
-} from "@playwright/test";
+import { chromium, type Page, type Route } from "@playwright/test";
 import {
 	type CrawlConfig,
 	type GenerationError,
@@ -14,31 +10,6 @@ import {
 	type ManifestData,
 	type ViewportConfig,
 } from "./viewport-config.ts";
-
-interface ScreenshotResult {
-	path: string;
-	viewport: string;
-	filename: string;
-}
-
-function writeProgress(prefix: string, current: number, total: number): void {
-	const width = 30;
-	const filled = Math.round((current / total) * width);
-	const bar = `${"█".repeat(filled)}${"░".repeat(width - filled)}`;
-	process.stdout.write(`\r  ${prefix} [${bar}] ${current}/${total}`);
-	if (current === total) process.stdout.write("\n");
-}
-
-type LoadStrategy = "normal" | "extra_timeout" | "brutal";
-
-interface StrategyConfig {
-	timeout: number;
-	waitUntil: "networkidle" | "domcontentloaded" | "commit";
-	externalTimeout?: number;
-	maxRetries?: number;
-	blockExternal?: boolean;
-	forceProceed?: boolean;
-}
 
 function setupExternalResourceTimeout(
 	page: Page,
@@ -181,188 +152,12 @@ class PageCrawler {
 	}
 }
 
-class ScreenshotGenerator {
-	private baseUrl: string;
-	private viewports: ViewportConfig[];
-	private outputDir: string;
-	private hideSelectors: string[];
-
-	constructor(
-		baseUrl: string,
-		viewports: ViewportConfig[],
-		outputDir: string,
-		hideSelectors: string[],
-		_config: CrawlConfig,
-	) {
-		this.baseUrl = baseUrl;
-		this.viewports = viewports;
-		this.outputDir = outputDir;
-		this.hideSelectors = hideSelectors || [];
-	}
-
-	getScreenshotFilename(pagePath: string, viewportName: string): string {
-		const safePath =
-			pagePath === "/"
-				? "homepage"
-				: pagePath.replace(/\//g, "-").replace(/^-/, "");
-		return `${viewportName}-${safePath}.png`;
-	}
-
-	async hideElements(page: Page): Promise<void> {
-		if (this.hideSelectors.length === 0) return;
-
-		for (const selector of this.hideSelectors) {
-			try {
-				await page.evaluate((sel: string) => {
-					const elements = document.querySelectorAll(sel);
-					for (const el of elements) el.remove();
-				}, selector);
-			} catch {
-				// Selector might not exist on this page, that's OK
-			}
-		}
-	}
-
-	async tryPageLoad(
-		page: Page,
-		url: string,
-		strategy: LoadStrategy,
-	): Promise<void> {
-		const strategies: Record<LoadStrategy, StrategyConfig> = {
-			normal: {
-				timeout: 30000,
-				waitUntil: "networkidle",
-			},
-			extra_timeout: {
-				timeout: 30000,
-				waitUntil: "networkidle",
-				externalTimeout: 20000,
-				maxRetries: 2,
-			},
-			brutal: {
-				timeout: 120000,
-				waitUntil: "commit",
-				blockExternal: true,
-				forceProceed: true,
-			},
-		};
-
-		const strategyConfig = strategies[strategy];
-
-		if (strategyConfig.externalTimeout) {
-			setupExternalResourceTimeout(
-				page,
-				this.baseUrl,
-				strategyConfig.externalTimeout,
-			);
-		}
-
-		if (strategyConfig.blockExternal) {
-			await page.route("**/*", (route: Route) => {
-				const reqUrl = route.request().url();
-				if (reqUrl.startsWith(this.baseUrl) || reqUrl.startsWith("data:")) {
-					route.continue();
-				} else {
-					route.abort("blockedbyrule").catch(() => {});
-				}
-			});
-		}
-
-		if (strategyConfig.forceProceed) {
-			try {
-				await page.goto(url, {
-					timeout: strategyConfig.timeout,
-					waitUntil: strategyConfig.waitUntil,
-				});
-			} catch {
-				// forceProceed: take screenshot of whatever loaded, never give up
-				console.log(`   ⚡ Brutal: proceeding with partial content`);
-			}
-		} else {
-			await page.goto(url, {
-				timeout: strategyConfig.timeout,
-				waitUntil: strategyConfig.waitUntil,
-			});
-		}
-	}
-
-	async generateScreenshots(
-		browser: Browser,
-		paths: string[],
-	): Promise<{ results: ScreenshotResult[]; errors: GenerationError[] }> {
-		const results: ScreenshotResult[] = [];
-		const errors: GenerationError[] = [];
-		for (const viewport of this.viewports) {
-			const label = `${viewport.name} (${viewport.width}x${viewport.height})`;
-			console.log(`\n📸 ${label}`);
-			const context = await browser.newContext({
-				ignoreHTTPSErrors: true,
-				viewport: { width: viewport.width, height: viewport.height },
-			});
-
-			for (let i = 0; i < paths.length; i++) {
-				const pagePath = paths[i];
-				const fullUrl = this.baseUrl + pagePath;
-				let loaded = false;
-				let page: Page | null = null;
-
-				writeProgress(viewport.name, i + 1, paths.length);
-
-				const strategyList: LoadStrategy[] = [
-					"normal",
-					"extra_timeout",
-					"brutal",
-				];
-
-				for (const strategy of strategyList) {
-					try {
-						if (page) await page.close();
-						page = await context.newPage();
-
-						await this.tryPageLoad(page, fullUrl, strategy);
-						loaded = true;
-						break;
-					} catch (error) {
-						if (strategy === strategyList[strategyList.length - 1]) {
-							const errorMsg = (error as Error).message;
-							errors.push({
-								path: pagePath,
-								viewport: viewport.name,
-								stage: "load",
-								message: errorMsg,
-							});
-						}
-					}
-				}
-
-				if (!loaded) {
-					if (page) await page.close();
-					continue;
-				}
-
-				try {
-					if (page) await this.hideElements(page);
-
-					const filename = this.getScreenshotFilename(pagePath, viewport.name);
-					const filepath = path.join(this.outputDir, filename);
-					await page?.screenshot({ path: filepath, fullPage: true });
-					results.push({ path: pagePath, viewport: viewport.name, filename });
-				} catch (error) {
-					const errorMsg = (error as Error).message;
-					errors.push({
-						path: pagePath,
-						viewport: viewport.name,
-						stage: "screenshot",
-						message: errorMsg,
-					});
-				} finally {
-					if (page) await page.close();
-				}
-			}
-			await context.close();
-		}
-		return { results, errors };
-	}
+function getScreenshotFilename(pagePath: string, viewportName: string): string {
+	const safePath =
+		pagePath === "/"
+			? "homepage"
+			: pagePath.replace(/\//g, "-").replace(/^-/, "");
+	return `${viewportName}-${safePath}.png`;
 }
 
 class ManifestWriter {
@@ -377,7 +172,7 @@ class ManifestWriter {
 		config: CrawlConfig,
 		viewports: ViewportConfig[],
 		paths: string[],
-		screenshots: ScreenshotResult[],
+		screenshotCount: number,
 		errors: GenerationError[],
 	): void {
 		const manifest: ManifestData = {
@@ -395,7 +190,7 @@ class ManifestWriter {
 			errors: errors,
 			metadata: {
 				totalPaths: paths.length,
-				totalScreenshots: screenshots.length,
+				totalScreenshots: screenshotCount,
 				totalErrors: errors.length,
 				viewports: viewports.map((v) => v.name),
 			},
@@ -407,6 +202,32 @@ class ManifestWriter {
 		fs.writeFileSync(this.manifestPath, JSON.stringify(manifest, null, 2));
 		console.log(`\n✅ Manifest saved to ${this.manifestPath}`);
 	}
+}
+
+function runPlaywrightGeneration(
+	baseUrl: string,
+	specificPath?: string,
+): Promise<number> {
+	return new Promise((resolve) => {
+		const args = [
+			"playwright",
+			"test",
+			"src/regression.spec.ts",
+			"--update-snapshots",
+		];
+
+		if (specificPath) {
+			const escapedPath = specificPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+			args.push("--grep", `${escapedPath}(?!/) should`);
+		}
+
+		const child = spawn("npx", args, {
+			stdio: "inherit",
+			env: { ...process.env, BASE_URL: baseUrl },
+		});
+
+		child.on("close", (code) => resolve(code ?? 1));
+	});
 }
 
 export async function generateBaseline(specificPath?: string): Promise<void> {
@@ -482,7 +303,7 @@ export async function generateBaseline(specificPath?: string): Promise<void> {
 	let discoveredPaths: string[];
 
 	if (specificPath) {
-		console.log(`🎯 Generating screenshots for: ${specificPath}\n`);
+		console.log(`🎯 Generating baselines for: ${specificPath}\n`);
 		discoveredPaths = [specificPath];
 	} else {
 		console.log("🕷️  Starting page discovery...\n");
@@ -492,50 +313,68 @@ export async function generateBaseline(specificPath?: string): Promise<void> {
 		console.log(`\n✅ Discovered ${discoveredPaths.length} pages`);
 	}
 
+	await browser.close();
+
+	// Write initial manifest so regression.spec.ts can load it
 	fs.mkdirSync(snapshotsDir, { recursive: true });
+	const manifestWriter = new ManifestWriter(manifestPath);
+	manifestWriter.write(baseUrl, config, viewports, discoveredPaths, 0, []);
 
-	const generator = new ScreenshotGenerator(
+	// Generate baselines via toHaveScreenshot with visual stabilization
+	console.log(
+		"\n📸 Generating baselines via toHaveScreenshot (with visual stabilization)...\n",
+	);
+
+	await runPlaywrightGeneration(baseUrl, specificPath);
+
+	// Scan snapshot directory for generated baselines and determine errors
+	const generatedFiles = fs.existsSync(snapshotsDir)
+		? fs.readdirSync(snapshotsDir).filter((f) => f.endsWith(".png"))
+		: [];
+
+	const errors: GenerationError[] = [];
+	let screenshotCount = 0;
+
+	for (const viewport of viewports) {
+		for (const pagePath of discoveredPaths) {
+			const expectedFile = getScreenshotFilename(pagePath, viewport.name);
+			if (generatedFiles.includes(expectedFile)) {
+				screenshotCount++;
+			} else {
+				errors.push({
+					path: pagePath,
+					viewport: viewport.name,
+					stage: "screenshot",
+					message:
+						"Baseline not generated (toHaveScreenshot failed or timed out)",
+				});
+			}
+		}
+	}
+
+	// Rewrite manifest with final screenshot count and errors
+	manifestWriter.write(
 		baseUrl,
-		viewports,
-		snapshotsDir,
-		config.hideSelectors,
 		config,
-	);
-	const { results: screenshots, errors } = await generator.generateScreenshots(
-		browser,
+		viewports,
 		discoveredPaths,
+		screenshotCount,
+		errors,
 	);
 
-	console.log(`\n✅ Generated ${screenshots.length} screenshots`);
+	console.log(`\n✅ Generated ${screenshotCount} screenshots`);
 
 	if (errors.length > 0) {
 		console.log(`\n⚠️  ${errors.length} error(s) during generation:`);
 		for (const err of errors) {
-			console.log(
-				`   ❌ [${err.viewport}] ${err.path} — ${err.stage} failed: ${err.message}`,
-			);
+			console.log(`   ❌ [${err.viewport}] ${err.path} — ${err.message}`);
 		}
 		console.log(
 			"\n   These path+viewport combinations will be skipped during testing.",
 		);
 	}
 
-	const manifestWriter = new ManifestWriter(manifestPath);
-	if (specificPath) {
-		console.log("\n📝 Creating manifest for single path...");
-	}
-	manifestWriter.write(
-		baseUrl,
-		config,
-		viewports,
-		discoveredPaths,
-		screenshots,
-		errors,
-	);
-
 	console.log("\n🎉 Baseline generation complete!");
-
-	await browser.close();
 }
 
 // Run directly when executed as a script
