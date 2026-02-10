@@ -8,15 +8,15 @@ export function readPngDimensions(filePath: string): {
 	width: number;
 	height: number;
 } | null {
-	if (!fs.existsSync(filePath)) {
-		return null;
-	}
-
 	try {
+		// Use file descriptor directly to avoid TOCTOU race condition
 		const buffer = Buffer.alloc(24);
 		const fd = fs.openSync(filePath, "r");
-		fs.readSync(fd, buffer, 0, 24, 0);
-		fs.closeSync(fd);
+		try {
+			fs.readSync(fd, buffer, 0, 24, 0);
+		} finally {
+			fs.closeSync(fd);
+		}
 
 		// Verify PNG signature
 		const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -30,6 +30,7 @@ export function readPngDimensions(filePath: string): {
 
 		return { width, height };
 	} catch {
+		// File doesn't exist or can't be read
 		return null;
 	}
 }
