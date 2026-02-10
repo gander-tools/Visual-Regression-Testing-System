@@ -16,11 +16,11 @@ export default defineConfig({
 	expect: {
 		timeout: 10000,
 		toHaveScreenshot: {
-			maxDiffPixelRatio: 0.01,
+			maxDiffPixelRatio: config.maxDiffPixelRatio,
 			animations: "disabled",
 		},
 	},
-	retries: 2,
+	retries: 0,
 	reporter: [["html", { outputFolder: ".visual-regression/report" }], ["list"]],
 	use: {
 		baseURL: process.env.BASE_URL || "https://localhost",
