@@ -24,10 +24,30 @@ const config: Partial<CrawlConfig> = {
 \t\t{ name: "desktop", width: 1280 },
 \t],
 \thideSelectors: [
+\t\t// CSS selectors
 \t\t".sf-toolbar",
 \t\t"[data-hx-include]",
 \t\t".fb-share-button",
+\t\t// XPath selectors (prefix with xpath= or start with //)
+\t\t// "xpath=//div[@class='dynamic-content']",
+\t\t// "//section[contains(@class, 'ad-banner')]",
 \t],
+\t// Selectors to mask in toHaveScreenshot (covered with pink box, not removed).
+\t// Useful for OOPIF iframes and other dynamic content that changes between runs.
+\t// Supports CSS and XPath selectors (same syntax as hideSelectors).
+\t// Default config includes masks for YouTube, Vimeo, and other popular embeds.
+\t// maskSelectors: [
+\t// \t'iframe[src*="youtube.com"]',
+\t// \t'iframe[src*="vimeo.com"]',
+\t// ],
+\t// Domains allowed to load external resources (e.g., embed providers).
+\t// Default includes YouTube, Vimeo and related CDN domains.
+\t// whitelistedDomains: [
+\t// \t"youtube.com",
+\t// \t"vimeo.com",
+\t// ],
+\t// Domains to block completely (resources will not be loaded).
+\t// blacklistedDomains: [],
 \t// Visual regression sensitivity: 0.01 = 1% pixel difference allowed (default)
 \t// maxDiffPixelRatio: 0.01,
 };

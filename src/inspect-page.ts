@@ -96,14 +96,36 @@ export async function inspectPage(
 		const status = response?.status();
 		console.log(`Page loaded: HTTP ${status}`);
 
-		// Hide configured selectors
+		// Hide configured selectors (supports CSS and XPath)
 		if (config.hideSelectors && config.hideSelectors.length > 0) {
 			console.log(`\nHiding ${config.hideSelectors.length} selectors...`);
 			for (const selector of config.hideSelectors) {
-				await page.evaluate((sel: string) => {
-					const elements = document.querySelectorAll(sel);
-					for (const el of elements) (el as HTMLElement).style.display = "none";
-				}, selector);
+				const isXPath =
+					selector.startsWith("//") || selector.startsWith("xpath=");
+				if (isXPath) {
+					const xpath = selector.startsWith("xpath=")
+						? selector.slice(6)
+						: selector;
+					await page.evaluate((xp: string) => {
+						const result = document.evaluate(
+							xp,
+							document,
+							null,
+							XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+							null,
+						);
+						for (let i = 0; i < result.snapshotLength; i++) {
+							const el = result.snapshotItem(i);
+							if (el instanceof HTMLElement) el.style.display = "none";
+						}
+					}, xpath);
+				} else {
+					await page.evaluate((sel: string) => {
+						const elements = document.querySelectorAll(sel);
+						for (const el of elements)
+							(el as HTMLElement).style.display = "none";
+					}, selector);
+				}
 			}
 		}
 

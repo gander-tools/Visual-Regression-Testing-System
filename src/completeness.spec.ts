@@ -21,15 +21,8 @@ async function setupExternalResourceTimeout(
 	const requestAttempts = new Map<string, number>();
 	const maxAttempts = 2;
 
-	// Whitelisted domains for embeds (YouTube, Vimeo)
-	const whitelistedDomains = [
-		"youtube.com",
-		"ytimg.com",
-		"googlevideo.com",
-		"ggpht.com",
-		"vimeo.com",
-		"vimeocdn.com",
-	];
+	const whitelistedDomains = config.whitelistedDomains || [];
+	const blacklistedDomains = config.blacklistedDomains || [];
 
 	await page.route("**/*", (route: Route) => {
 		const url = route.request().url();
@@ -40,7 +33,13 @@ async function setupExternalResourceTimeout(
 			return;
 		}
 
-		// Allow whitelisted domains (YouTube, Vimeo embeds)
+		// Block blacklisted domains immediately
+		if (blacklistedDomains.some((domain) => url.includes(domain))) {
+			route.abort("blockedbyclient").catch(() => {});
+			return;
+		}
+
+		// Allow whitelisted domains
 		if (whitelistedDomains.some((domain) => url.includes(domain))) {
 			route.continue();
 			return;
