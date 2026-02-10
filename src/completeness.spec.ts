@@ -9,6 +9,9 @@ import {
 const { config, configDir } = await loadCrawlConfig();
 const manifest: ManifestData = loadManifest(config, configDir);
 
+// Allow overriding baseUrl via BASE_URL env var (e.g., test staging against production baseline)
+const testBaseUrl = process.env.BASE_URL || manifest.baseUrl;
+
 // Setup external resource timeout to prevent networkidle blocking
 async function setupExternalResourceTimeout(
 	page: Page,
@@ -73,7 +76,7 @@ async function setupExternalResourceTimeout(
 
 test.describe("Visual Regression - Completeness Check", () => {
 	test.use({
-		baseURL: manifest.baseUrl,
+		baseURL: testBaseUrl,
 	});
 
 	test("all baseline paths should still be accessible", async ({ page }) => {
@@ -82,7 +85,7 @@ test.describe("Visual Regression - Completeness Check", () => {
 		const skipped: string[] = [];
 
 		// Setup external resource timeout to handle pages like /media
-		await setupExternalResourceTimeout(page, manifest.baseUrl, 20000);
+		await setupExternalResourceTimeout(page, testBaseUrl, 20000);
 
 		for (const pagePath of manifest.paths) {
 			if (hasAllViewportsErrored(manifest, pagePath)) {
