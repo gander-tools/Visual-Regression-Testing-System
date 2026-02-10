@@ -14,11 +14,6 @@
 	"private": true,
 	"scripts": {
 		"cli": "tsx src/cli.ts",
-		"visual:init": "tsx src/cli.ts init",
-		"visual:generate": "tsx src/cli.ts generate",
-		"visual:test": "tsx src/cli.ts test",
-		"visual:report": "tsx src/cli.ts report",
-		"visual:inspect": "tsx src/cli.ts inspect",
 		"typecheck": "tsc --noEmit",
 		"check": "npx -y @biomejs/biome check",
 		"test:unit": "tsx --test src/cli.test.ts src/run-visual-tests.test.ts",

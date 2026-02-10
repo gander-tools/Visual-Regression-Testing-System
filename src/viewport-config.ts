@@ -55,7 +55,7 @@ function validateViewports(
 	if (!rawViewports || rawViewports.length === 0) {
 		throw new Error(
 			"No viewports defined in configuration. At least one viewport is required.\n" +
-				"Run 'npm run visual:init' to create .crawler-config.ts with default viewports.",
+				"Run 'npm run cli init' to create .crawler-config.ts with default viewports.",
 		);
 	}
 
@@ -146,7 +146,7 @@ export function loadManifest(
 	if (!fs.existsSync(manifestPath)) {
 		throw new Error(
 			`Manifest not found at ${manifestPath}\n` +
-				`Please run 'npm run visual:generate' first to create baseline screenshots and manifest.`,
+				`Please run 'npm run cli generate' first to create baseline screenshots and manifest.`,
 		);
 	}
 

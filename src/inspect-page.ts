@@ -11,11 +11,11 @@ export async function inspectPage(
 	if (!pagePath) {
 		console.error("Error: Page path is required");
 		console.log("\nUsage:");
-		console.log("  npm run visual:inspect <path> [--viewport=<name>]");
+		console.log("  npm run cli inspect <path> [--viewport=<name>]");
 		console.log("\nExamples:");
-		console.log("  npm run visual:inspect /media");
-		console.log("  npm run visual:inspect /media --viewport=mobile");
-		console.log("  npm run visual:inspect /media --viewport=tablet");
+		console.log("  npm run cli inspect /media");
+		console.log("  npm run cli inspect /media --viewport=mobile");
+		console.log("  npm run cli inspect /media --viewport=tablet");
 		process.exit(1);
 	}
 
