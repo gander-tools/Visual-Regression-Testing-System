@@ -24,7 +24,6 @@ export default defineConfig({
 	reporter: [
 		["html", { outputFolder: ".visual-regression/report", open: "never" }],
 		["./reporters/custom-reporter.ts"],
-		["./reporters/database-reporter.ts"],
 	],
 	use: {
 		baseURL: process.env.BASE_URL || "https://localhost",
