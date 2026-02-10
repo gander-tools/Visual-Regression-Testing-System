@@ -11,19 +11,22 @@ class CustomReporter implements Reporter {
 		console.log("  npm run cli report");
 		console.log(`${"=".repeat(60)}\n`);
 
-		// Suppress the built-in HTML reporter "To open last HTML report run:" message
-		// that follows in the next reporter's onEnd call.
-		const originalLog = console.log;
-		console.log = (...args: unknown[]) => {
-			const msg = String(args[0] ?? "");
+		// Suppress the built-in HTML reporter "To open last HTML report run:" message.
+		// Playwright writes it via process.stdout.write when process.stdin.isTTY is true.
+		const originalWrite = process.stdout.write.bind(process.stdout);
+		process.stdout.write = ((
+			chunk: string | Uint8Array,
+			...args: unknown[]
+		): boolean => {
+			const str = typeof chunk === "string" ? chunk : chunk.toString();
 			if (
-				msg.includes("To open last HTML report") ||
-				msg.includes("npx playwright show-report")
+				str.includes("To open last HTML report") ||
+				str.includes("npx playwright show-report")
 			) {
-				return;
+				return true;
 			}
-			originalLog(...args);
-		};
+			return originalWrite(chunk, ...args);
+		}) as typeof process.stdout.write;
 	}
 
 	printsToStdio() {
