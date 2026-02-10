@@ -226,9 +226,7 @@ function runPlaywrightGeneration(
 	specificPath?: string,
 ): Promise<number> {
 	return new Promise((resolve) => {
-		const configPath = resolvePlaywrightConfig(
-			"playwright.generation.config",
-		);
+		const configPath = resolvePlaywrightConfig("playwright.generation.config");
 		const args = [
 			"playwright",
 			"test",

@@ -3,7 +3,7 @@ import { defineConfig } from "tsdown";
 export default defineConfig({
 	entry: {
 		// CLI entry point — gets commander bundled in
-		"cli": "src/cli.ts",
+		cli: "src/cli.ts",
 
 		// Playwright runtime files — must remain separate for Playwright to discover
 		"src/regression.spec": "src/regression.spec.ts",
