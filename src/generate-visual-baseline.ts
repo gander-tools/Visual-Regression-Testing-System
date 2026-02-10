@@ -209,16 +209,31 @@ class ManifestWriter {
 	}
 }
 
+function resolvePlaywrightConfig(name: string): string {
+	const dir = import.meta.dirname;
+	// Bundled mode: config is sibling to chunk (both in dist/)
+	const mjsPath = path.resolve(dir, `${name}.mjs`);
+	if (fs.existsSync(mjsPath)) return mjsPath;
+	// Dev mode: config is in project root (parent of src/)
+	const tsPath = path.resolve(dir, "..", `${name}.ts`);
+	if (fs.existsSync(tsPath)) return tsPath;
+	// Fallback: relative to CWD
+	return `${name}.ts`;
+}
+
 function runPlaywrightGeneration(
 	baseUrl: string,
 	specificPath?: string,
 ): Promise<number> {
 	return new Promise((resolve) => {
+		const configPath = resolvePlaywrightConfig(
+			"playwright.generation.config",
+		);
 		const args = [
 			"playwright",
 			"test",
 			"--config",
-			"playwright.generation.config.ts",
+			configPath,
 			"--update-snapshots",
 		];
 

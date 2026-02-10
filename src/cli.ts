@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { Command } from "commander";
 
@@ -32,7 +32,7 @@ export function createProgram(actions: CliActions = defaultActions): Command {
 	const program = new Command();
 
 	program
-		.name("npm run cli --")
+		.name("visual-regression")
 		.description("Visual regression testing CLI")
 		.version("1.0.0");
 
@@ -85,9 +85,15 @@ export function createProgram(actions: CliActions = defaultActions): Command {
 	return program;
 }
 
-// Run directly when executed as a script
+// Run directly when executed as a script or compiled binary.
+// Node:        process.argv = [node, /path/to/cli.mjs, ...args]
+// Bun compile: process.argv = [bun, /$bunfs/root/visual-regression-..., ...args]
+const entryPath = process.argv[1] ?? "";
 const isDirectRun =
-	process.argv[1]?.endsWith("cli.ts") || process.argv[1]?.endsWith("cli");
+	entryPath.endsWith("cli.ts") ||
+	entryPath.endsWith("cli.mjs") ||
+	entryPath.endsWith("cli") ||
+	entryPath.includes("visual-regression");
 if (isDirectRun) {
 	createProgram().parse();
 }

@@ -1,4 +1,6 @@
 #!/usr/bin/env tsx
+import fs from "node:fs";
+import path from "node:path";
 import type { FullConfig } from "@playwright/test";
 
 // Dependencies interface for testing
@@ -69,6 +71,18 @@ export function createRunVisualTests(deps: TestRunnerDeps) {
 	};
 }
 
+function resolvePlaywrightConfig(): string | undefined {
+	const dir = import.meta.dirname;
+	// Bundled mode: config is sibling to chunk (both in dist/)
+	const mjsPath = path.resolve(dir, "playwright.config.mjs");
+	if (fs.existsSync(mjsPath)) return mjsPath;
+	// Dev mode: config is in project root (parent of src/)
+	const tsPath = path.resolve(dir, "..", "playwright.config.ts");
+	if (fs.existsSync(tsPath)) return tsPath;
+	// Fallback: let Playwright search CWD
+	return undefined;
+}
+
 // Default implementation using real dependencies
 async function createDefaultDeps(): Promise<TestRunnerDeps> {
 	const { loadConfigFromFile, resolveConfigLocation } =
@@ -81,7 +95,8 @@ async function createDefaultDeps(): Promise<TestRunnerDeps> {
 
 	return {
 		loadConfig: async (cwd: string, pagePath?: string) => {
-			const fullConfig = await loadConfigFromFile(undefined, {}, false);
+			const configFile = resolvePlaywrightConfig();
+			const fullConfig = await loadConfigFromFile(configFile, {}, false);
 
 			// Apply grep filter via cliGrep (same as --grep flag)
 			if (pagePath) {

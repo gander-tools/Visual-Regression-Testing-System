@@ -9,10 +9,14 @@ const snapshotsDir = path.resolve(
 	config.outputDir || ".visual-regression/screenshots/baseline",
 );
 
+// Detect bundled (.mjs) vs dev (.ts) mode for file references
+const isBundled = import.meta.url.endsWith(".mjs");
+const specExt = isBundled ? ".mjs" : ".ts";
+
 export default defineConfig({
 	testDir: "./src",
-	testMatch: "*.spec.ts",
-	testIgnore: ["**/generation.spec.ts"],
+	testMatch: `*${specExt}`,
+	testIgnore: [`**/generation.spec${specExt}`],
 	timeout: 30000,
 	expect: {
 		timeout: 10000,
@@ -23,7 +27,7 @@ export default defineConfig({
 	},
 	retries: 0,
 	reporter: [
-		["./reporters/custom-reporter.ts"],
+		[`./reporters/custom-reporter${specExt}`],
 		["html", { outputFolder: ".visual-regression/report", open: "never" }],
 	],
 	use: {

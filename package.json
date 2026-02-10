@@ -4,6 +4,7 @@
 	"devDependencies": {
 		"@playwright/test": "^1.58.0",
 		"@types/node": "^25.2.0",
+		"tsdown": "^0.20.3",
 		"tsx": "^4.20.0",
 		"typescript": "^5.9.0"
 	},
@@ -14,6 +15,9 @@
 	"private": true,
 	"scripts": {
 		"cli": "tsx src/cli.ts",
+		"build": "bash scripts/build.sh",
+		"build:bundle": "tsdown",
+		"test:build": "tsx --test src/build.test.ts",
 		"typecheck": "tsc --noEmit",
 		"check": "npx -y @biomejs/biome check",
 		"test:unit": "tsx --test src/cli.test.ts src/run-visual-tests.test.ts",

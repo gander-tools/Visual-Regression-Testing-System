@@ -14,9 +14,10 @@ export function initConfig(): void {
 		process.exit(1);
 	}
 
-	const template = `import type { CrawlConfig } from "./src/crawler-config.ts";
+	const template = `// CrawlConfig type reference (for IDE support, optional):
+// import type { CrawlConfig } from "./src/crawler-config.ts";
 
-const config: Partial<CrawlConfig> = {
+const config = {
 \tblacklistPatterns: [
 \t\t"/_profiler/*",
 \t],
