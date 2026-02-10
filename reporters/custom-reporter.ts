@@ -10,6 +10,20 @@ class CustomReporter implements Reporter {
 		console.log(`\n  Aby otworzyc raport HTML, uruchom:`);
 		console.log("  npm run cli report");
 		console.log(`${"=".repeat(60)}\n`);
+
+		// Suppress the built-in HTML reporter "To open last HTML report run:" message
+		// that follows in the next reporter's onEnd call.
+		const originalLog = console.log;
+		console.log = (...args: unknown[]) => {
+			const msg = String(args[0] ?? "");
+			if (
+				msg.includes("To open last HTML report") ||
+				msg.includes("npx playwright show-report")
+			) {
+				return;
+			}
+			originalLog(...args);
+		};
 	}
 
 	printsToStdio() {
