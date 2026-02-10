@@ -21,6 +21,14 @@ interface ScreenshotResult {
 	filename: string;
 }
 
+function writeProgress(prefix: string, current: number, total: number): void {
+	const width = 30;
+	const filled = Math.round((current / total) * width);
+	const bar = `${"█".repeat(filled)}${"░".repeat(width - filled)}`;
+	process.stdout.write(`\r  ${prefix} [${bar}] ${current}/${total}`);
+	if (current === total) process.stdout.write("\n");
+}
+
 type LoadStrategy = "normal" | "extra_timeout" | "brutal";
 
 interface StrategyConfig {
@@ -141,16 +149,15 @@ class PageCrawler {
 			crawlIndex++;
 
 			try {
-				console.log(`🔍 [${crawlIndex}] Crawling: ${currentPath}`);
+				process.stdout.write(
+					`\r  Crawling... ${crawlIndex} visited, ${this.discoveredPaths.size} found, ${queue.length} queued`,
+				);
 				const response = await page.goto(this.baseUrl + currentPath, {
 					timeout: this.config.timeout,
 					waitUntil: "networkidle",
 				});
 
 				if (!response || !response.ok()) {
-					console.warn(
-						`⚠️  [${crawlIndex}] Skipping ${currentPath} - HTTP ${response?.status() || "error"}`,
-					);
 					continue;
 				}
 
@@ -159,23 +166,17 @@ class PageCrawler {
 				const links = await page.$$eval("a[href]", (anchors) =>
 					anchors.map((a) => (a as HTMLAnchorElement).href),
 				);
-				let newLinkCount = 0;
 				for (const link of links) {
 					const normalizedPath = this.normalizePath(link);
 					if (normalizedPath && !this.visited.has(normalizedPath)) {
 						queue.push(normalizedPath);
-						newLinkCount++;
 					}
 				}
-				console.log(
-					`   Found ${links.length} links, ${newLinkCount} new to queue (queue size: ${queue.length})`,
-				);
-			} catch (error) {
-				console.warn(
-					`⚠️  [${crawlIndex}] Error crawling ${currentPath}: ${(error as Error).message}`,
-				);
+			} catch {
+				// errors collected silently, crawling continues
 			}
 		}
+		process.stdout.write("\n");
 		return Array.from(this.discoveredPaths).sort();
 	}
 }
@@ -292,9 +293,8 @@ class ScreenshotGenerator {
 		const results: ScreenshotResult[] = [];
 		const errors: GenerationError[] = [];
 		for (const viewport of this.viewports) {
-			console.log(
-				`\n📸 Generating ${viewport.name} screenshots (${viewport.width}x${viewport.height}px)...`,
-			);
+			const label = `${viewport.name} (${viewport.width}x${viewport.height})`;
+			console.log(`\n📸 ${label}`);
 			const context = await browser.newContext({
 				ignoreHTTPSErrors: true,
 				viewport: { width: viewport.width, height: viewport.height },
@@ -302,10 +302,11 @@ class ScreenshotGenerator {
 
 			for (let i = 0; i < paths.length; i++) {
 				const pagePath = paths[i];
-				const pathIndex = `[${i + 1}/${paths.length}]`;
 				const fullUrl = this.baseUrl + pagePath;
 				let loaded = false;
 				let page: Page | null = null;
+
+				writeProgress(viewport.name, i + 1, paths.length);
 
 				const strategyList: LoadStrategy[] = [
 					"normal",
@@ -318,18 +319,12 @@ class ScreenshotGenerator {
 						if (page) await page.close();
 						page = await context.newPage();
 
-						console.log(
-							`   ${pathIndex} ${pagePath}${strategy !== "normal" ? ` (${strategy})` : ""}`,
-						);
 						await this.tryPageLoad(page, fullUrl, strategy);
 						loaded = true;
 						break;
 					} catch (error) {
 						if (strategy === strategyList[strategyList.length - 1]) {
 							const errorMsg = (error as Error).message;
-							console.warn(
-								`   ${pathIndex} ⚠️  Failed to load ${pagePath} [${viewport.name}]: ${errorMsg}`,
-							);
 							errors.push({
 								path: pagePath,
 								viewport: viewport.name,
@@ -354,9 +349,6 @@ class ScreenshotGenerator {
 					results.push({ path: pagePath, viewport: viewport.name, filename });
 				} catch (error) {
 					const errorMsg = (error as Error).message;
-					console.warn(
-						`   ${pathIndex} ⚠️  Screenshot failed ${pagePath} [${viewport.name}]: ${errorMsg}`,
-					);
 					errors.push({
 						path: pagePath,
 						viewport: viewport.name,
@@ -498,10 +490,6 @@ export async function generateBaseline(specificPath?: string): Promise<void> {
 		discoveredPaths = await crawler.crawl(page);
 
 		console.log(`\n✅ Discovered ${discoveredPaths.length} pages`);
-		for (let i = 0; i < discoveredPaths.length; i++)
-			console.log(
-				`   [${i + 1}/${discoveredPaths.length}] ${discoveredPaths[i]}`,
-			);
 	}
 
 	fs.mkdirSync(snapshotsDir, { recursive: true });
