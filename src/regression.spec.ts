@@ -148,6 +148,9 @@ for (const viewport of viewports) {
 				await page.goto(pagePath);
 				await page.waitForLoadState("networkidle");
 
+				// Wait for external embeds and lazy content to render
+				await page.waitForTimeout(2000);
+
 				// Hide elements that should not be in screenshots
 				await hideElements(page, manifest.crawlerConfig.hideSelectors);
 
