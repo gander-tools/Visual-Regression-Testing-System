@@ -25,9 +25,9 @@ export function createRunVisualTests(deps: TestRunnerDeps) {
 				if (!pagePath.startsWith("/")) {
 					deps.consoleError("❌ Error: Path must start with /");
 					deps.consoleLog("\nUsage:");
-					deps.consoleLog("  npm run visual:test           # Run all tests");
+					deps.consoleLog("  npm run cli test           # Run all tests");
 					deps.consoleLog(
-						"  npm run visual:test /media    # Run tests for /media only",
+						"  npm run cli test /media    # Run tests for /media only",
 					);
 					deps.processExit(1);
 				}
