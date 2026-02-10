@@ -7,6 +7,7 @@ export interface CrawlConfig {
 	outputDir: string;
 	manifestPath: string;
 	hideSelectors: string[];
+	maxDiffPixelRatio: number;
 }
 
 export const defaultConfig: CrawlConfig = {
@@ -18,4 +19,5 @@ export const defaultConfig: CrawlConfig = {
 	outputDir: ".visual-regression/screenshots/baseline",
 	manifestPath: ".visual-regression/manifest.json",
 	hideSelectors: [],
+	maxDiffPixelRatio: 0.01, // 1% difference threshold
 };
