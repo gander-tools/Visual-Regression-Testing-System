@@ -212,7 +212,7 @@ function runPlaywrightGeneration(
 		const args = [
 			"playwright",
 			"test",
-			"src/regression.spec.ts",
+			"src/generation.spec.ts",
 			"--update-snapshots",
 		];
 
