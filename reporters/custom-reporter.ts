@@ -8,10 +8,9 @@ import type {
 } from "@playwright/test/reporter";
 
 interface FailedTest {
-	title: string;
-	file: string;
-	line: number;
-	error: string;
+	path: string;
+	viewport: string;
+	pixels: string;
 }
 
 class CustomReporter implements Reporter {
@@ -29,11 +28,21 @@ class CustomReporter implements Reporter {
 		this.completedTests++;
 
 		if (result.status === "failed" || result.status === "timedOut") {
+			const msg = result.error?.message || "";
+			const pixelMatch = msg.match(
+				/(\d+ pixels \(ratio [\d.]+ of all image pixels\))/,
+			);
+			const snapshotMatch = msg.match(/Snapshot:\s*(\S+)/);
+			const viewport = snapshotMatch
+				? snapshotMatch[1].split("-")[0]
+				: "unknown";
+			const pagePath =
+				test.title.replace(" should match baseline", "") || test.title;
+
 			this.failures.push({
-				title: test.title,
-				file: test.location.file,
-				line: test.location.line,
-				error: result.error?.message || result.status,
+				path: pagePath,
+				viewport,
+				pixels: pixelMatch ? pixelMatch[1] : result.status,
 			});
 		}
 
@@ -52,8 +61,7 @@ class CustomReporter implements Reporter {
 		if (this.failures.length > 0) {
 			console.log(`\n  ${this.failures.length} failed:`);
 			for (const f of this.failures) {
-				console.log(`    ${f.file}:${f.line} — ${f.title}`);
-				console.log(`      ${f.error}`);
+				console.log(`    [${f.viewport}] ${f.path} — ${f.pixels}`);
 			}
 		}
 
