@@ -212,7 +212,8 @@ function runPlaywrightGeneration(
 		const args = [
 			"playwright",
 			"test",
-			"src/generation.spec.ts",
+			"--config",
+			"playwright.generation.config.ts",
 			"--update-snapshots",
 		];
 
