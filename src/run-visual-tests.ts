@@ -53,11 +53,7 @@ export function createRunVisualTests(deps: TestRunnerDeps) {
 			// 4. Convert result to exit code (Playwright may return 'passed', 'failed', 'timedout', etc.)
 			const exitCode = result === "passed" || result === 0 ? 0 : 1;
 
-			// 5. Display report command
-			deps.consoleLog("\n📊 To view the HTML report, run:");
-			deps.consoleLog("   npm run visual:report\n");
-
-			// 6. Exit with appropriate code
+			// 5. Exit with appropriate code
 			deps.processExit(exitCode);
 		} catch (error) {
 			// If error is from processExit mock, re-throw it (don't handle it)
