@@ -27,6 +27,9 @@ export interface ManifestData {
 		ignoreQueryParams: boolean;
 		blacklistPatterns: string[];
 		hideSelectors: string[];
+		maskSelectors: string[];
+		whitelistedDomains: string[];
+		blacklistedDomains: string[];
 	};
 	paths: string[];
 	viewports: ViewportConfig[];

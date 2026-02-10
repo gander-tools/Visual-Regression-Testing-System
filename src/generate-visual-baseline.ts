@@ -14,25 +14,26 @@ import {
 function setupExternalResourceTimeout(
 	page: Page,
 	baseUrlParam: string,
+	crawlConfig: CrawlConfig,
 	timeoutMs = 20000,
 ): void {
 	const requestAttempts = new Map<string, number>();
 	const maxAttempts = 2;
 
-	const whitelistedDomains = [
-		"youtube.com",
-		"ytimg.com",
-		"googlevideo.com",
-		"ggpht.com",
-		"vimeo.com",
-		"vimeocdn.com",
-	];
+	const whitelistedDomains = crawlConfig.whitelistedDomains || [];
+	const blacklistedDomains = crawlConfig.blacklistedDomains || [];
 
 	page.route("**/*", (route: Route) => {
 		const url = route.request().url();
 
 		if (url.startsWith(baseUrlParam) || url.startsWith("data:")) {
 			route.continue();
+			return;
+		}
+
+		// Block blacklisted domains immediately
+		if (blacklistedDomains.some((domain) => url.includes(domain))) {
+			route.abort("blockedbyclient").catch(() => {});
 			return;
 		}
 
@@ -107,6 +108,7 @@ class PageCrawler {
 		setupExternalResourceTimeout(
 			page,
 			this.baseUrl,
+			this.config,
 			this.config.externalResourceTimeout || 10000,
 		);
 
@@ -184,6 +186,9 @@ class ManifestWriter {
 				ignoreQueryParams: config.ignoreQueryParams,
 				blacklistPatterns: config.blacklistPatterns,
 				hideSelectors: config.hideSelectors || [],
+				maskSelectors: config.maskSelectors || [],
+				whitelistedDomains: config.whitelistedDomains || [],
+				blacklistedDomains: config.blacklistedDomains || [],
 			},
 			paths: paths,
 			viewports: viewports,

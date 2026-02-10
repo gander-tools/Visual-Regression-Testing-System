@@ -10,20 +10,60 @@ const manifest: ManifestData = loadManifest(config, configDir);
 
 const testBaseUrl = process.env.BASE_URL || manifest.baseUrl;
 
-// Helper to remove elements before screenshot
+// Check if a selector is XPath (starts with // or xpath=)
+function isXPathSelector(selector: string): boolean {
+	return selector.startsWith("//") || selector.startsWith("xpath=");
+}
+
+// Normalize XPath selector by stripping the xpath= prefix
+function normalizeXPath(selector: string): string {
+	return selector.startsWith("xpath=") ? selector.slice(6) : selector;
+}
+
+// Helper to remove elements before screenshot (supports CSS and XPath selectors)
 async function hideElements(page: Page, selectors: string[]): Promise<void> {
 	if (!selectors || selectors.length === 0) return;
 
 	for (const selector of selectors) {
 		try {
-			await page.evaluate((sel: string) => {
-				const elements = document.querySelectorAll(sel);
-				for (const el of elements) el.remove();
-			}, selector);
+			if (isXPathSelector(selector)) {
+				const xpath = normalizeXPath(selector);
+				await page.evaluate((xp: string) => {
+					const result = document.evaluate(
+						xp,
+						document,
+						null,
+						XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+						null,
+					);
+					for (let i = 0; i < result.snapshotLength; i++) {
+						const el = result.snapshotItem(i);
+						if (el instanceof HTMLElement) el.remove();
+					}
+				}, xpath);
+			} else {
+				await page.evaluate((sel: string) => {
+					const elements = document.querySelectorAll(sel);
+					for (const el of elements) el.remove();
+				}, selector);
+			}
 		} catch {
 			// Selector might not exist, that's OK
 		}
 	}
+}
+
+// Build mask locators from selectors (supports CSS and XPath via Playwright locator engine)
+function buildMaskLocators(page: Page, selectors: string[]) {
+	if (!selectors || selectors.length === 0) return [];
+
+	return selectors.map((selector) => {
+		if (isXPathSelector(selector)) {
+			const xpath = normalizeXPath(selector);
+			return page.locator(`xpath=${xpath}`);
+		}
+		return page.locator(selector);
+	});
 }
 
 // Setup external resource timeout to prevent networkidle blocking
@@ -35,20 +75,20 @@ async function setupExternalResourceTimeout(
 	const requestAttempts = new Map<string, number>();
 	const maxAttempts = 2;
 
-	const whitelistedDomains = [
-		"youtube.com",
-		"ytimg.com",
-		"googlevideo.com",
-		"ggpht.com",
-		"vimeo.com",
-		"vimeocdn.com",
-	];
+	const whitelistedDomains = config.whitelistedDomains || [];
+	const blacklistedDomains = config.blacklistedDomains || [];
 
 	await page.route("**/*", (route: Route) => {
 		const url = route.request().url();
 
 		if (url.startsWith(baseUrl) || url.startsWith("data:")) {
 			route.continue();
+			return;
+		}
+
+		// Block blacklisted domains immediately
+		if (blacklistedDomains.some((domain) => url.includes(domain))) {
+			route.abort("blockedbyclient").catch(() => {});
 			return;
 		}
 
@@ -101,14 +141,18 @@ for (const viewport of viewports) {
 				await page.goto(pagePath);
 				await page.waitForLoadState("networkidle");
 
-				// Extra delay for external embeds and lazy content to fully render
-				await page.waitForTimeout(2000);
-
 				await hideElements(page, manifest.crawlerConfig.hideSelectors);
+
+				// Build mask locators for OOPIF and other dynamic elements
+				const maskLocators = buildMaskLocators(
+					page,
+					manifest.crawlerConfig.maskSelectors || [],
+				);
 
 				await expect(page).toHaveScreenshot(screenshotName, {
 					fullPage: true,
 					maxDiffPixelRatio: config.maxDiffPixelRatio,
+					mask: maskLocators,
 				});
 			});
 		}
