@@ -20,6 +20,6 @@
 		"check:fix": "npx -y @biomejs/biome check --write"
 	},
 	"dependencies": {
-		"commander": "^14.0.3"
+		"commander": "^15.0.0"
 	}
 }
